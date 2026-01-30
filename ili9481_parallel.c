@@ -105,19 +105,19 @@ static void write_cmd(uint8_t cmd)
     set_line(cs_req, LCD_CS, 0);  // CS low
 
     //DEBUGGING - add delay 
-    usleep(10);
+    usleep(1);
 
     set_data_bus(cmd);
 
     //DEBUGGING - add delay 
-    usleep(10);
+    usleep(1);
 
     set_line(wr_req, LCD_WR, 0);  // WR pulse
     //DEBUGGING - add delay 
-    usleep(10);
+    usleep(1);
     set_line(wr_req, LCD_WR, 1);
     //DEBUGGING - add delay 
-    usleep(10);
+    usleep(1);
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
@@ -128,17 +128,17 @@ static void write_data(uint8_t data)
     set_line(cs_req, LCD_CS, 0);  // CS low
 
     //DEBUGGING - add delay 
-    usleep(10);
+    usleep(1);
 
     set_data_bus(data);
     //DEBUGGING - add delay 
-    usleep(10);
+    usleep(1);
     set_line(wr_req, LCD_WR, 0);
     //DEBUGGING - add delay 
-    usleep(10);
+    usleep(1);
     set_line(wr_req, LCD_WR, 1);
     //DEBUGGING - add delay 
-    usleep(10);
+    usleep(1);
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
