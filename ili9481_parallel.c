@@ -1,6 +1,5 @@
 // ili9481_parallel.c
-// Minimal 8-bit parallel ILI9481 driver using libgpiod on Raspberry Pi Zero 2 W.
-// Pin mapping uses BCM numbers corresponding to your wiring.
+// ILI9481 driver using libgpiod API on Raspberry Pi Zero 2 W
 
 #include <gpiod.h>
 #include <stdio.h>
@@ -28,27 +27,61 @@
 #define LCD_D7   18
 
 static struct gpiod_chip *chip;
-static struct gpiod_line *rd_line, *wr_line, *rs_line, *cs_line, *rst_line;
-static struct gpiod_line *d_lines[8];
+static struct gpiod_line_request *rd_req, *wr_req, *rs_req, *cs_req, *rst_req;
+static struct gpiod_line_request *d_req[8];
 
-// Simple helper to request one output line
-static struct gpiod_line *req_out_line(int gpio, const char *name, int init)
+// Helper to request one output line with libgpiod v2
+static struct gpiod_line_request *req_out_line(unsigned int gpio, const char *name, int init)
 {
-    struct gpiod_line *l = gpiod_chip_get_line(chip, gpio);
-    if (!l) {
-        fprintf(stderr, "Failed to get line %d\n", gpio);
+    struct gpiod_line_settings *settings;
+    struct gpiod_line_config *config;
+    struct gpiod_request_config *req_config;
+    struct gpiod_line_request *request;
+    
+    settings = gpiod_line_settings_new();
+    if (!settings) {
+        fprintf(stderr, "Failed to create line settings\n");
         exit(1);
     }
-    if (gpiod_line_request_output(l, name, init) < 0) {
-        fprintf(stderr, "Failed to request line %d as output\n", gpio);
+    
+    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
+    gpiod_line_settings_set_output_value(settings, init ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);
+    
+    config = gpiod_line_config_new();
+    if (!config) {
+        fprintf(stderr, "Failed to create line config\n");
         exit(1);
     }
-    return l;
+    
+    if (gpiod_line_config_add_line_settings(config, &gpio, 1, settings) < 0) {
+        fprintf(stderr, "Failed to add line settings\n");
+        exit(1);
+    }
+    
+    req_config = gpiod_request_config_new();
+    if (!req_config) {
+        fprintf(stderr, "Failed to create request config\n");
+        exit(1);
+    }
+    gpiod_request_config_set_consumer(req_config, name);
+    
+    request = gpiod_chip_request_lines(chip, req_config, config);
+    if (!request) {
+        fprintf(stderr, "Failed to request line %d\n", gpio);
+        exit(1);
+    }
+    
+    gpiod_line_settings_free(settings);
+    gpiod_line_config_free(config);
+    gpiod_request_config_free(req_config);
+    
+    return request;
 }
 
-static void set_line(struct gpiod_line *l, int val)
+static void set_line(struct gpiod_line_request *req, unsigned int offset, int val)
 {
-    if (gpiod_line_set_value(l, val) < 0) {
+    enum gpiod_line_value value = val ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
+    if (gpiod_line_request_set_value(req, offset, value) < 0) {
         fprintf(stderr, "Failed to set line value\n");
         exit(1);
     }
@@ -56,49 +89,35 @@ static void set_line(struct gpiod_line *l, int val)
 
 static void set_data_bus(uint8_t value)
 {
-    // Map bits 0..7 to your D0..D7 lines
-    int vals[8];
-    vals[0] = (value >> 0) & 1; // D0
-    vals[1] = (value >> 1) & 1; // D1
-    vals[2] = (value >> 2) & 1; // D2
-    vals[3] = (value >> 3) & 1; // D3
-    vals[4] = (value >> 4) & 1; // D4
-    vals[5] = (value >> 5) & 1; // D5
-    vals[6] = (value >> 6) & 1; // D6
-    vals[7] = (value >> 7) & 1; // D7
-
+    // Set each data line individually
+    int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
+    
     for (int i = 0; i < 8; i++) {
-        if (gpiod_line_set_value(d_lines[i], vals[i]) < 0) {
-            fprintf(stderr, "Failed to set data line %d\n", i);
-            exit(1);
-        }
+        int bit_val = (value >> i) & 1;
+        set_line(d_req[i], data_gpios[i], bit_val);
     }
 }
 
 // Write one 8-bit command
 static void write_cmd(uint8_t cmd)
 {
-    set_line(rs_line, 0);        // RS/DC = 0 for command
-    set_line(cs_line, 0);        // CS low
+    set_line(rs_req, LCD_RS, 0);  // RS/DC = 0 for command
+    set_line(cs_req, LCD_CS, 0);  // CS low
     set_data_bus(cmd);
-    // Pulse WR low
-    set_line(wr_line, 0);
-    // Short delay – adjust if needed
-    // usleep(1);
-    set_line(wr_line, 1);
-    set_line(cs_line, 1);        // CS high
+    set_line(wr_req, LCD_WR, 0);  // WR pulse
+    set_line(wr_req, LCD_WR, 1);
+    set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
 // Write one 8-bit data value
 static void write_data(uint8_t data)
 {
-    set_line(rs_line, 1);        // RS/DC = 1 for data
-    set_line(cs_line, 0);        // CS low
+    set_line(rs_req, LCD_RS, 1);  // RS/DC = 1 for data
+    set_line(cs_req, LCD_CS, 0);  // CS low
     set_data_bus(data);
-    set_line(wr_line, 0);
-    // usleep(1);
-    set_line(wr_line, 1);
-    set_line(cs_line, 1);        // CS high
+    set_line(wr_req, LCD_WR, 0);
+    set_line(wr_req, LCD_WR, 1);
+    set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
 // Write 16-bit data as two bytes (MSB first) for RGB565
@@ -110,10 +129,9 @@ static void write_data16(uint16_t data)
 
 static void ili9481_reset(void)
 {
-    // Hardware reset
-    set_line(rst_line, 0);
+    set_line(rst_req, LCD_RST, 0);
     usleep(20000);  // 20 ms
-    set_line(rst_line, 1);
+    set_line(rst_req, LCD_RST, 1);
     usleep(120000); // 120 ms
 }
 
@@ -125,7 +143,7 @@ static void ili9481_init(void)
     write_cmd(0x11);             // Sleep Out (TFT_SLPOUT)
     usleep(20000);               // 20ms delay
 
-    // Power setting - match ESP32 values
+    // Power setting 
     write_cmd(0xD0);
     write_data(0x07);
     write_data(0x42);         
@@ -212,7 +230,6 @@ static void ili9481_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y
     write_cmd(0x2C);             // Memory write
 }
 
-// Fill entire screen with one color
 static void ili9481_fill_screen(uint16_t color)
 {
     const uint16_t width  = 320;
@@ -235,39 +252,37 @@ int main(void)
     }
 
     // Request control lines
-    rd_line  = req_out_line(LCD_RD,  "lcd-rd", 1);  // Keep RD high (no reads)
-    wr_line  = req_out_line(LCD_WR,  "lcd-wr", 1);
-    rs_line  = req_out_line(LCD_RS,  "lcd-rs", 1);
-    cs_line  = req_out_line(LCD_CS,  "lcd-cs", 1);
-    rst_line = req_out_line(LCD_RST, "lcd-rst", 1);
+    rd_req  = req_out_line(LCD_RD,  "lcd-rd", 1);
+    wr_req  = req_out_line(LCD_WR,  "lcd-wr", 1);
+    rs_req  = req_out_line(LCD_RS,  "lcd-rs", 1);
+    cs_req  = req_out_line(LCD_CS,  "lcd-cs", 1);
+    rst_req = req_out_line(LCD_RST, "lcd-rst", 1);
 
     // Request data lines
-    int data_gpios[8] = {
-        LCD_D0, LCD_D1, LCD_D2, LCD_D3,
-        LCD_D4, LCD_D5, LCD_D6, LCD_D7
-    };
+    int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
     for (int i = 0; i < 8; i++) {
-        d_lines[i] = req_out_line(data_gpios[i], "lcd-d", 0);
+        d_req[i] = req_out_line(data_gpios[i], "lcd-d", 0);
     }
-
-    // Ensure default states
-    set_line(rd_line, 1);
-    set_line(wr_line, 1);
-    set_line(cs_line, 1);
-    set_line(rs_line, 1);
 
     printf("Initializing ILI9481...\n");
     ili9481_init();
-    printf("Filling screen...\n");
+    printf("Filling screen with blue...\n");
 
-    // RGB565: blue = 0x001F, red = 0xF800, green = 0x07E0
-    ili9481_fill_screen(0x001F);
+    ili9481_fill_screen(0x001F);  // Blue
 
     printf("Done.\n");
-
-    // Keep process alive a bit so you can see result, then exit
     sleep(2);
 
+    // Cleanup
+    gpiod_line_request_release(rd_req);
+    gpiod_line_request_release(wr_req);
+    gpiod_line_request_release(rs_req);
+    gpiod_line_request_release(cs_req);
+    gpiod_line_request_release(rst_req);
+    for (int i = 0; i < 8; i++) {
+        gpiod_line_request_release(d_req[i]);
+    }
     gpiod_chip_close(chip);
+    
     return 0;
 }
