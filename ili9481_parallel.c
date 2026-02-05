@@ -1,7 +1,12 @@
 // ili9481_parallel.c
 // ILI9481 driver using libgpiod API on Raspberry Pi Zero 2 W
 
+#ifdef COMPILE_CHECK
+#include "gpiod.h"
+#else
 #include <gpiod.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
