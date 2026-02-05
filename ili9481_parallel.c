@@ -14,6 +14,8 @@
 
 #define GPIOCHIP "/dev/gpiochip0"
 
+const uint8_t DEBUG_USLEEP = 10;
+
 // Control pins (BCM)
 #define LCD_RD   2
 #define LCD_WR   3
@@ -110,19 +112,19 @@ static void write_cmd(uint8_t cmd)
     set_line(cs_req, LCD_CS, 0);  // CS low
 
     //DEBUGGING - add delay 
-    usleep(1);
+    usleep(DEBUG_USLEEP);
 
     set_data_bus(cmd);
 
     //DEBUGGING - add delay 
-    usleep(1);
+    usleep(DEBUG_USLEEP);
 
     set_line(wr_req, LCD_WR, 0);  // WR pulse
     //DEBUGGING - add delay 
-    usleep(1);
+    usleep(DEBUG_USLEEP);
     set_line(wr_req, LCD_WR, 1);
     //DEBUGGING - add delay 
-    usleep(1);
+    usleep(DEBUG_USLEEP);
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
@@ -133,17 +135,17 @@ static void write_data(uint8_t data)
     set_line(cs_req, LCD_CS, 0);  // CS low
 
     //DEBUGGING - add delay 
-    usleep(1);
+    usleep(DEBUG_USLEEP);
 
     set_data_bus(data);
     //DEBUGGING - add delay 
-    usleep(1);
+    usleep(DEBUG_USLEEP);
     set_line(wr_req, LCD_WR, 0);
     //DEBUGGING - add delay 
-    usleep(1);
+    usleep(DEBUG_USLEEP);
     set_line(wr_req, LCD_WR, 1);
     //DEBUGGING - add delay 
-    usleep(1);
+    usleep(DEBUG_USLEEP);
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
@@ -167,27 +169,29 @@ static void ili9481_init(void)
 {
     ili9481_reset();
 
-    write_cmd(0x11);             // Sleep Out (TFT_SLPOUT)
-    usleep(20000);               // 20ms delay
-
-    // Power setting 
+    write_cmd(0x11);  // Sleep Out
+    usleep(120000);   // Wait 120ms 
+    // Exit Sleep Mode
+    write_cmd(0x13);  // Normal Display Mode ON
+    
+    // Power Setting
     write_cmd(0xD0);
     write_data(0x07);
-    write_data(0x42);         
-    write_data(0x18);           
+    write_data(0x42);
+    write_data(0x18);
 
-    // VCOM control
+    // VCOM Control
     write_cmd(0xD1);
     write_data(0x00);
-    write_data(0x07);            
-    write_data(0x10);            
+    write_data(0x07);
+    write_data(0x10);
 
-    // Power setting for normal mode 
+    // Power Setting for Normal Mode
     write_cmd(0xD2);
     write_data(0x01);
-    write_data(0x02);            
+    write_data(0x02);
 
-    // Panel driving setting 
+    // Panel Driving Setting
     write_cmd(0xC0);
     write_data(0x10);
     write_data(0x3B);
@@ -195,11 +199,11 @@ static void ili9481_init(void)
     write_data(0x02);
     write_data(0x11);
 
-    // Frame rate and inversion - same
+    // Frame Rate Control
     write_cmd(0xC5);
     write_data(0x03);
 
-    // Gamma 
+    // Gamma Setting
     write_cmd(0xC8);
     write_data(0x00);
     write_data(0x32);
@@ -214,33 +218,49 @@ static void ili9481_init(void)
     write_data(0x0C);
     write_data(0x00);
 
-    // Memory Access Control (0x36 = TFT_MADCTL)
-    write_cmd(0x36);
-    write_data(0x0A);           
+    // Entry Mode Set
+    write_cmd(0xB7);
+    write_data(0x06);
 
-    // Interface pixel format: 16-bit (0x3A)
+    // Display Control
+    write_cmd(0xB6);
+    write_data(0x02);
+    write_data(0x02);
+    write_data(0x3B);
+
+    // Interface Control - IMPORTANT!
+    write_cmd(0xF6);
+    write_data(0x01);  // Enable SDO
+    write_data(0x00);
+    write_data(0x00);
+
+    // Pixel Format - try 18-bit mode
     write_cmd(0x3A);
-    write_data(0x55);            // 16bpp for 8-bit parallel
+    write_data(0x66);  // 18-bit per pixel
 
-    // Column Address Set (0x2A = TFT_CASET)
+    // Memory Access Control - try different orientations
+    write_cmd(0x36);
+    write_data(0x48);  // MX=0, MY=1, MV=0, ML=0, BGR=1
+
+    // Column Address Set
     write_cmd(0x2A);
     write_data(0x00);
     write_data(0x00);
     write_data(0x01);
-    write_data(0x3F);            // 0x013F = 319
+    write_data(0x3F);
 
-    // Page Address Set (0x2B = TFT_PASET)
+    // Page Address Set
     write_cmd(0x2B);
     write_data(0x00);
     write_data(0x00);
     write_data(0x01);
-    write_data(0xDF);            
+    write_data(0xDF);
 
-    usleep(120000);              // 120ms delay
+    usleep(120000);
 
-    // Display ON (0x29 = TFT_DISPON)
+    // Display ON
     write_cmd(0x29);
-    usleep(25000);               
+    usleep(50000);
 }
 
 // Set full window (0..319, 0..479)
