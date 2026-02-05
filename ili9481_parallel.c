@@ -149,11 +149,17 @@ static void write_data(uint8_t data)
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
-// Write 16-bit data as two bytes (MSB first) for RGB565
-static void write_data16(uint16_t data)
+// Trying another way to write 16-bit data in 18-bit mode
+static void write_data16(uint16_t color)
 {
-    write_data((data >> 8) & 0xFF);
-    write_data(data & 0xFF);
+    // Convert RGB565 to RGB666 for 18-bit mode
+    uint8_t r = ((color >> 11) & 0x1F) << 1;  // 5→6 bits
+    uint8_t g = ((color >> 5) & 0x3F);        // 6 bits
+    uint8_t b = ((color) & 0x1F) << 1;        // 5→6 bits
+    
+    write_data(r << 2);  // R: 6 bits in upper part
+    write_data(g << 2);  // G: 6 bits in upper part
+    write_data(b << 2);  // B: 6 bits in upper part
 }
 
 static void ili9481_reset(void)

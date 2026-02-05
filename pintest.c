@@ -1,4 +1,9 @@
+#ifdef COMPILE_CHECK
+#include "gpiod.h"
+#else
 #include <gpiod.h>
+#endif
+
 #include <stdio.h>
 #include <unistd.h>
 
