@@ -1,6 +1,8 @@
 // ili9481_parallel.c
 // ILI9481 driver using libgpiod API on Raspberry Pi Zero 2 W
 
+#include "pin_definitions.h"
+
 #ifdef COMPILE_CHECK
 #include "gpiod.h"
 #else
@@ -15,23 +17,6 @@
 #define GPIOCHIP "/dev/gpiochip0"
 
 const uint8_t DEBUG_USLEEP = 10;
-
-// Control pins (BCM)
-#define LCD_RD   2
-#define LCD_WR   3
-#define LCD_RS   4   // DC
-#define LCD_CS   17
-#define LCD_RST  27
-
-// Data pins D0..D7 (BCM)
-#define LCD_D0   15
-#define LCD_D1   14
-#define LCD_D2   9
-#define LCD_D3   10
-#define LCD_D4   22
-#define LCD_D5   24
-#define LCD_D6   23
-#define LCD_D7   18
 
 static struct gpiod_chip *chip;
 static struct gpiod_line_request *rd_req, *wr_req, *rs_req, *cs_req, *rst_req;
