@@ -13,7 +13,7 @@
 /* =======================
    USER-TUNABLE SETTINGS
    ======================= */
-static const unsigned int TEST_DELAY_SEC = 1;  // delay between toggles
+static const unsigned int TEST_DELAY_SEC = 5;  // delay between toggles
 
 /* =======================
    GPIO HELPERS
