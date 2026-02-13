@@ -2,6 +2,7 @@
 // ILI9481 driver using libgpiod API on Raspberry Pi Zero 2 W
 
 #include "pin_definitions.h"
+#include "ili9481_init.h"   # Plethora of other init sequences
 
 #ifdef COMPILE_CHECK
 #include "gpiod.h"
@@ -160,90 +161,6 @@ static void ili9481_reset(void)
     
     set_line(rst_req, LCD_RST, 1);
     usleep(120000); // Wait 120ms before sending commands 
-}
-
-// Very minimal init sequence for ILI9481
-static void ili9481_init(void)
-{
-    ili9481_reset();
-
-    // Exit Sleep
-    write_cmd(0x11);
-    usleep(20000);
-
-    // Power Setting
-    write_cmd(0xD0);
-    write_data(0x07);
-    write_data(0x42);
-    write_data(0x18);
-
-    // VCOM Control
-    write_cmd(0xD1);
-    write_data(0x00);
-    write_data(0x07);  // VCM changed from 0x0D to 0x07 per datasheet
-    write_data(0x10);
-
-    // Power Setting for Normal Mode
-    write_cmd(0xD2);
-    write_data(0x01);
-    write_data(0x02);
-
-    // Panel Driving Setting
-    write_cmd(0xC0);
-    write_data(0x10);
-    write_data(0x3B);
-    write_data(0x00);
-    write_data(0x02);
-    write_data(0x11);
-
-    // *** CRITICAL: Display Mode Control (was missing!) ***
-    write_cmd(0xB4);
-    write_data(0x00);  // Internal clock mode
-
-    // Frame Rate Control
-    write_cmd(0xC5);
-    write_data(0x03);
-
-    // Gamma Setting
-    write_cmd(0xC8);
-    write_data(0x00);
-    write_data(0x32);
-    write_data(0x36);
-    write_data(0x45);
-    write_data(0x06);
-    write_data(0x16);
-    write_data(0x37);
-    write_data(0x75);
-    write_data(0x77);
-    write_data(0x54);
-    write_data(0x0C);
-    write_data(0x00);
-
-    // Interface Pixel Format 
-    write_cmd(0x3A);
-    write_data(0x55);  // 16-bit/pixel (RGB565)
-
-    // Memory Access Control (Page 127)
-    write_cmd(0x36);
-    write_data(0x0A);  // MY=0, MX=0, MV=0, ML=0, BGR=1, MH=0
-
-    // Column Address Set
-    write_cmd(0x2A);
-    write_data(0x00);
-    write_data(0x00);
-    write_data(0x01);
-    write_data(0x3F);  // 319 (0x013F)
-
-    // Page Address Set
-    write_cmd(0x2B);
-    write_data(0x00);
-    write_data(0x00);
-    write_data(0x01);
-    write_data(0xDF);  // 479 (0x01DF)
-
-    // Display ON
-    write_cmd(0x29);
-    usleep(100000);
 }
 
 // Set full window (0..319, 0..479)
