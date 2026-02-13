@@ -288,52 +288,22 @@ static void test_data_bus_pattern(void)
     printf("Connect logic analyzer or LED bar to D0-D7\n");
     printf("You should see a walking bit pattern:\n");
     
-    // Walking 1s pattern
+    // turn all LEDs on for a second (verify wiring)
+    set_data_bus(0xFF);
+    sleep(1);
+    set_data_bus(0x00);
+
+    // Walking 1s pattern (Check Pattern)
     for (int i = 0; i < 8; i++) {
         uint8_t pattern = (1 << i);
         printf("Setting data bus to 0x%02X (bit %d high)\n", pattern, i);
         set_data_bus(pattern);
         sleep(1);
     }
-    
-    // Test known patterns
-    printf("Setting 0xAA (10101010)...\n");
-    set_data_bus(0xAA);
-    sleep(2);
-    
-    printf("Setting 0x55 (01010101)...\n");
-    set_data_bus(0x55);
-    sleep(2);
-    
-    printf("Setting 0xFF (11111111)...\n");
-    set_data_bus(0xFF);
-    sleep(2);
-    
-    printf("Setting 0x00 (00000000)...\n");
-    set_data_bus(0x00);
-    sleep(2);
 }
 
 static void test_suite(void)
 {
-    chip = gpiod_chip_open(GPIOCHIP);
-    if (!chip) {
-        perror("gpiod_chip_open");
-    }
-
-    // Request control lines
-    rd_req  = req_out_line(LCD_RD,  "lcd-rd", 1);
-    wr_req  = req_out_line(LCD_WR,  "lcd-wr", 1);
-    rs_req  = req_out_line(LCD_RS,  "lcd-rs", 1);
-    cs_req  = req_out_line(LCD_CS,  "lcd-cs", 1);
-    rst_req = req_out_line(LCD_RST, "lcd-rst", 1);
-
-    // Request data lines
-    int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
-    for (int i = 0; i < 8; i++) {
-        d_req[i] = req_out_line(data_gpios[i], "lcd-d", 0);
-    }
-
     printf("\n");
     printf("================================================================\n");
     printf("    ILI9481 COMPREHENSIVE DIAGNOSTIC TEST SUITE\n");
@@ -743,6 +713,25 @@ cleanup:
 }
 
 int main(void){
+    chip = gpiod_chip_open(GPIOCHIP);
+    if (!chip) {
+        perror("gpiod_chip_open");
+    }
+
+    // Request control lines
+    rd_req  = req_out_line(LCD_RD,  "lcd-rd", 1);
+    wr_req  = req_out_line(LCD_WR,  "lcd-wr", 1);
+    rs_req  = req_out_line(LCD_RS,  "lcd-rs", 1);
+    cs_req  = req_out_line(LCD_CS,  "lcd-cs", 1);
+    rst_req = req_out_line(LCD_RST, "lcd-rst", 1);
+
+    // Request data lines
+    int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
+    for (int i = 0; i < 8; i++) {
+        d_req[i] = req_out_line(data_gpios[i], "lcd-d", 0);
+    }
+
     test_suite();
+    
     return 0;
 }
