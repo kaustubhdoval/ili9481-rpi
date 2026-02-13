@@ -2,7 +2,7 @@
 // ILI9481 driver using libgpiod API on Raspberry Pi Zero 2 W
 
 #include "pin_definitions.h"
-#include "ili9481_init.h"   # Plethora of other init sequences
+#include "ili9481_init.h"   // Plethora of other init sequences
 
 #ifdef COMPILE_CHECK
 #include "gpiod.h"
@@ -112,6 +112,10 @@ static void write_cmd(uint8_t cmd)
     //DEBUGGING - add delay 
     usleep(DEBUG_USLEEP);
     set_line(cs_req, LCD_CS, 1);  // CS high
+}
+
+static void delay(uint32_t ms){
+    usleep(ms * 1000);
 }
 
 // Write one 8-bit data value
