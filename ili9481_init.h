@@ -64,7 +64,7 @@ static inline void ili9481_init(void)
     write_data(0x0F);
     write_data(0x00);
 
-    write_cmd(0x36);
+    write_cmd(MADCTL);
     write_data(0x02); // Change to RGB order
 
     write_cmd(0x3A);

@@ -1,6 +1,7 @@
 #define TFT_WIDTH 320
 #define TFT_HEIGHT 480
 
+#define MADCTL 0x0A
 #define TFT_PARALLEL_8_BIT 1
 
 // Delay between some initialisation commands
