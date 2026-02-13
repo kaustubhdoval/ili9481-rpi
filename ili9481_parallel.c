@@ -316,44 +316,7 @@ static void test_suite(void)
     // ====================================================================
     // TEST 1: Data Bus Bit Pattern Test
     // ====================================================================
-    printf("TEST 1: DATA BUS BIT PATTERN TEST\n");
-    printf("----------------------------------\n");
-    printf("This tests if D0-D7 are connected correctly.\n");
-    printf("If you have LEDs/logic analyzer, verify the patterns:\n\n");
-    
-    printf("Walking 1s pattern (one bit at a time):\n");
-    for (int i = 0; i < 8; i++) {
-        uint8_t pattern = (1 << i);
-        printf("  D%d high: 0x%02X = ", i, pattern);
-        for (int b = 7; b >= 0; b--) {
-            printf("%d", (pattern >> b) & 1);
-        }
-        printf("\n");
-        set_data_bus(pattern);
-        sleep(1);
-    }
-    
-    printf("\nTest patterns:\n");
-    printf("  0xAA = 10101010\n");
-    set_data_bus(0xAA);
-    sleep(2);
-    
-    printf("  0x55 = 01010101\n");
-    set_data_bus(0x55);
-    sleep(2);
-    
-    printf("  0xFF = 11111111\n");
-    set_data_bus(0xFF);
-    sleep(2);
-    
-    printf("  0x00 = 00000000\n");
-    set_data_bus(0x00);
-    sleep(2);
-    
-    printf("\nData bus test complete.\n");
-    printf("Press Enter to continue...");
-    getchar();
-    printf("\n");
+    test_data_bus_pattern();
 
     // ====================================================================
     // TEST 2: Hardware Reset
