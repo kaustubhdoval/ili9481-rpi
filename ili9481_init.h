@@ -9,19 +9,84 @@ static void write_cmd(uint8_t cmd);
 static void write_data(uint8_t data);
 static void delay(uint32_t ms);
 
+#define ILI9481_INIT_CUSTOM 
 //#define ILI9481_INIT_1 // Original default
 // #define ILI9481_INIT_2 // CPT29
 // #define ILI9481_INIT_3 // PVI35
 // #define ILI9481_INIT_4 // AUO317
 // #define ILI9481_INIT_5 // CMO35 *****
 // #define ILI9481_INIT_6 // RGB
-#define ILI9481_INIT_7 // From #1774
+//#define ILI9481_INIT_7 // From #1774
 // #define ILI9481_INIT_8 // From #1774
 
 /////////////////////////////////////////////////////////////////////////////////////////
 static inline void ili9481_init(void)
 {
-#ifdef ILI9481_INIT_1
+#ifdef ILI9481_INIT_CUSTOM
+    write_cmd(0x11);
+    delay(20);
+
+    write_cmd(0xD0);
+    write_data(0x07);
+    write_data(0x42);
+    write_data(0x1B);
+
+    write_cmd(0xD1);
+    write_data(0x00);
+    write_data(0x14);
+    write_data(0x1B);
+
+    write_cmd(0xD2);
+    write_data(0x01);
+    write_data(0x12);
+
+    write_cmd(0xC0);
+    write_data(0x10);
+    write_data(0x3B);
+    write_data(0x00);
+    write_data(0x02);
+    write_data(0x01);
+
+    write_cmd(0xC5);
+    write_data(0x03);
+
+    write_cmd(0xC8);
+    write_data(0x00);
+    write_data(0x46);
+    write_data(0x44);
+    write_data(0x50);
+    write_data(0x04);
+    write_data(0x16);
+    write_data(0x33);
+    write_data(0x13);
+    write_data(0x77);
+    write_data(0x05);
+    write_data(0x0F);
+    write_data(0x00);
+
+    write_cmd(0x36);
+    write_data(0x02); // Change to RGB order
+
+    write_cmd(0x3A);
+    write_data(0x66); // 18-bit colour interface
+    
+    //write_cmd(0x22);
+    write_data(0x00);
+    write_data(0x00);
+    write_data(0x01);
+    write_data(0x3F);
+
+    //write_cmd(0x2B);
+    write_data(0x00);
+    write_data(0x00);
+    write_data(0x01);
+    write_data(0xE0);
+
+    delay(120);
+    
+    write_cmd(0x29);
+
+#elif ILI9481_INIT_1
     // Configure ILI9481 display
     write_cmd(TFT_SLPOUT);
     delay(20);

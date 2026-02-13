@@ -153,6 +153,13 @@ static void write_data16(uint16_t color)
     write_data(b << 2);  // B: 6 bits in upper part
 }
 
+// Add a separate function for coordinates
+static void write_coord16(uint16_t value)
+{
+    write_data((value >> 8) & 0xFF);   // High byte
+    write_data(value & 0xFF);           // Low byte
+}
+
 static void ili9481_reset(void)
 {
     // VCI power stable
@@ -172,12 +179,12 @@ static void ili9481_reset(void)
 static void ili9481_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
     write_cmd(0x2A);             // Column address set
-    write_data16(x0);
-    write_data16(x1);
+    write_coord16(x0);
+    write_coord16(x1);
 
     write_cmd(0x2B);             // Page address set
-    write_data16(y0);
-    write_data16(y1);
+    write_coord16(y0);
+    write_coord16(y1);
 
     write_cmd(0x2C);             // Memory write
 }
