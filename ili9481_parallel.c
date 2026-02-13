@@ -2,6 +2,7 @@
 // ILI9481 driver using libgpiod API on Raspberry Pi Zero 2 W
 
 #include "pin_definitions.h"
+#include "ili9481_constants.h"
 #include "ili9481_init.h"   // Plethora of other init sequences
 
 #ifdef COMPILE_CHECK
@@ -615,7 +616,15 @@ int main(void){
         d_req[i] = req_out_line(data_gpios[i], "lcd-d", 0);
     }
 
-    test_suite();
+    ili9481_reset();
+    ili9481_init();
+
+    printf("Testing small fill (100 pixels)...\n");
+    ili9481_set_window(0, 0, 9, 9);  // 10x10 square
+    for (int i = 0; i < 100; i++) {
+        write_data16(0xF800);  // Red
+    }
+    printf("Small fill done!\n");
     
     return 0;
 }
