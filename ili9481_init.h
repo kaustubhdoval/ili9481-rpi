@@ -64,11 +64,11 @@ static inline void ili9481_init(void)
     write_data(0x0F);
     write_data(0x00);
 
-    write_cmd(MADCTL);
-    write_data(0x02); // Change to RGB order
+    write_cmd(0x36);
+    write_data(MADCTL); // Change to RGB order
 
     write_cmd(0x3A);
-    write_data(0x66); // 18-bit colour interface
+    write_data(0x55); // 16-bit colour interface
     
     //write_cmd(0x22);
     write_data(0x00);

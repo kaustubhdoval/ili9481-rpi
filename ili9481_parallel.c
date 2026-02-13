@@ -18,7 +18,7 @@
 
 #define GPIOCHIP "/dev/gpiochip0"
 
-const uint8_t DEBUG_USLEEP = 10;
+const uint8_t DEBUG_USLEEP = 50;
 
 static struct gpiod_chip *chip;
 static struct gpiod_line_request *rd_req, *wr_req, *rs_req, *cs_req, *rst_req;
@@ -140,17 +140,14 @@ static void write_data(uint8_t data)
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
-// Trying another way to write 16-bit data in 18-bit mode
+// 16bit per pixel
 static void write_data16(uint16_t color)
 {
-    // Convert RGB565 to RGB666 for 18-bit mode
-    uint8_t r = ((color >> 11) & 0x1F) << 1;  // 5→6 bits
-    uint8_t g = ((color >> 5) & 0x3F);        // 6 bits
-    uint8_t b = ((color) & 0x1F) << 1;        // 5→6 bits
+    uint8_t high = (color >> 8) & 0xFF;
+    uint8_t low = color & 0xFF;
     
-    write_data(r << 2);  // R: 6 bits in upper part
-    write_data(g << 2);  // G: 6 bits in upper part
-    write_data(b << 2);  // B: 6 bits in upper part
+    write_data(high);
+    write_data(low);
 }
 
 // Add a separate function for coordinates
