@@ -141,10 +141,20 @@ static void write_data(uint8_t data)
 }
 
 // 16bit per pixel
+// 16bit per pixel with R and B swapped
 static void write_data16(uint16_t color)
 {
-    uint8_t high = (color >> 8) & 0xFF;
-    uint8_t low = color & 0xFF;
+    // RGB565 format: RRRRR GGGGGG BBBBB
+    // Extract channels
+    uint8_t r = (color >> 11) & 0x1F;  // 5 bits red
+    uint8_t g = (color >> 5) & 0x3F;   // 6 bits green  
+    uint8_t b = color & 0x1F;          // 5 bits blue
+    
+    // Rebuild as BGR565 (swap R and B positions)
+    uint16_t bgr = (b << 11) | (g << 5) | r;
+    
+    uint8_t high = (bgr >> 8) & 0xFF;
+    uint8_t low = bgr & 0xFF;
     
     write_data(high);
     write_data(low);

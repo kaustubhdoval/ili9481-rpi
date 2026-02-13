@@ -1,11 +1,11 @@
 #define TFT_WIDTH 320
 #define TFT_HEIGHT 480
 
-#define MADCTL 0x02
+#define MADCTL 0x08
 #define TFT_PARALLEL_8_BIT 1
 
 // Delay between some initialisation commands
-#define TFT_INIT_DELAY 0x80
+#define TFT_INIT_DELAY 0x02
 
 // Generic commands used by TFT_eSPI.cpp
 #define TFT_NOP 0x00
