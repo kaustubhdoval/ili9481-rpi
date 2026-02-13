@@ -633,12 +633,35 @@ int main(void){
     ili9481_reset();
     ili9481_init();
 
-    printf("Testing small fill (100 pixels)...\n");
-    ili9481_set_window(0, 0, 9, 9);  // 10x10 square
+    printf("Testing channel isolation...\n");
+
+    ili9481_set_window(0, 0, 9, 9);
+
+    // Test 1: Only RED bits set in RGB565 (0xF800)
+    printf("Sending 0xF800 (should be RED)...\n");
     for (int i = 0; i < 100; i++) {
-        write_data16(0xF800);  // Red
+        write_data(0xF8);  // High byte
+        write_data(0x00);  // Low byte
     }
-    printf("Small fill done!\n");
+    sleep(2);
+
+    // Test 2: Only GREEN bits set in RGB565 (0x07E0)  
+    printf("Sending 0x07E0 (should be GREEN)...\n");
+    ili9481_set_window(20, 0, 29, 9);
+    for (int i = 0; i < 100; i++) {
+        write_data(0x07);  // High byte
+        write_data(0xE0);  // Low byte
+    }
+    sleep(2);
+
+    // Test 3: Only BLUE bits set in RGB565 (0x001F)
+    printf("Sending 0x001F (should be BLUE)...\n");
+    ili9481_set_window(40, 0, 49, 9);
+    for (int i = 0; i < 100; i++) {
+        write_data(0x00);  // High byte
+        write_data(0x1F);  // Low byte
+    }
+    sleep(2);
     
     return 0;
 }
