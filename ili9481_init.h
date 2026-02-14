@@ -85,6 +85,7 @@ static inline void ili9481_init(void)
 
     delay(120);
     
+    write_cmd(0x21); // Inversion 
     write_cmd(0x29);
 
 #elif ILI9481_INIT_1

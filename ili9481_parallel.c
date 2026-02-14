@@ -140,18 +140,18 @@ static void write_data(uint8_t data)
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
-// 18-bit color mode (RGB666) - sends 3 bytes per pixel
+// 18-bit color mode (BGR666) - sends 3 bytes per pixel
 static void write_data16(uint16_t color)
 {
-    // Convert RGB565 to RGB666
+    // Extract RGB565 channels
     uint8_t r = ((color >> 11) & 0x1F);  // 5-bit red
     uint8_t g = ((color >> 5) & 0x3F);   // 6-bit green
     uint8_t b = (color & 0x1F);          // 5-bit blue
     
-    // Expand to 6 bits and send in upper 6 bits of each byte
-    write_data(r << 3);  // Red: xxxxx000 -> xxxxxx00
-    write_data(g << 2);  // Green: xxxxxx00
-    write_data(b << 3);  // Blue: xxxxx000 -> xxxxxx00
+    // Expand to 6 bits and send in BGR order
+    write_data(b << 3);  // BLUE first (xxxxx000 -> xxxxxx00)
+    write_data(g << 2);  // GREEN second (xxxxxx00)
+    write_data(r << 3);  // RED third (xxxxx000 -> xxxxxx00)
 }
 
 // Add a separate function for coordinates
