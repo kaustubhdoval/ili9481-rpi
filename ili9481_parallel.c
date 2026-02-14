@@ -18,8 +18,6 @@
 
 #define GPIOCHIP "/dev/gpiochip0"
 
-const uint8_t DEBUG_USLEEP = 50;
-
 static struct gpiod_chip *chip;
 static struct gpiod_line_request *rd_req, *wr_req, *rs_req, *cs_req, *rst_req;
 static struct gpiod_line_request *d_req[8];
@@ -98,20 +96,10 @@ static void write_cmd(uint8_t cmd)
     set_line(rs_req, LCD_RS, 0);  // RS/DC = 0 for command
     set_line(cs_req, LCD_CS, 0);  // CS low
 
-    //DEBUGGING - add delay 
-    usleep(DEBUG_USLEEP);
-
     set_data_bus(cmd);
 
-    //DEBUGGING - add delay 
-    usleep(DEBUG_USLEEP);
-
     set_line(wr_req, LCD_WR, 0);  // WR pulse
-    //DEBUGGING - add delay 
-    usleep(DEBUG_USLEEP);
     set_line(wr_req, LCD_WR, 1);
-    //DEBUGGING - add delay 
-    usleep(DEBUG_USLEEP);
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
@@ -125,18 +113,10 @@ static void write_data(uint8_t data)
     set_line(rs_req, LCD_RS, 1);  // RS/DC = 1 for data
     set_line(cs_req, LCD_CS, 0);  // CS low
 
-    //DEBUGGING - add delay 
-    usleep(DEBUG_USLEEP);
-
     set_data_bus(data);
-    //DEBUGGING - add delay 
-    usleep(DEBUG_USLEEP);
+
     set_line(wr_req, LCD_WR, 0);
-    //DEBUGGING - add delay 
-    usleep(DEBUG_USLEEP);
     set_line(wr_req, LCD_WR, 1);
-    //DEBUGGING - add delay 
-    usleep(DEBUG_USLEEP);
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
@@ -177,7 +157,7 @@ static void ili9481_reset(void)
 }
 
 // Set full window (0..319, 0..479)
-static void ili9481_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+static void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
     write_cmd(0x2A);             // Column address set
     write_coord16(x0);
@@ -190,13 +170,11 @@ static void ili9481_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y
     write_cmd(0x2C);             // Memory write
 }
 
-static void ili9481_fill_screen(uint16_t color)
+static void fill_screen(uint16_t color)
 {
-    const uint16_t width  = 320;
-    const uint16_t height = 480;
-    uint32_t pixels = (uint32_t)width * (uint32_t)height;
+    uint32_t pixels = (uint32_t)TFT_WIDTH * (uint32_t)TFT_HEIGHT;
 
-    ili9481_set_window(0, 0, width - 1, height - 1);
+    ili9481_set_window(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
 
     for (uint32_t i = 0; i < pixels; i++) {
         write_data16(color);
@@ -627,43 +605,9 @@ int main(void){
     ili9481_reset();
     ili9481_init();
 
-    // Test what happens when all 3 bytes are the same
-    printf("Testing identical bytes in 18-bit mode...\n");
+    fill_screen(WHITE);
+    USLEEP(2000);
+    fill_screen(RED);  
 
-    // Test 1: All RED
-    ili9481_set_window(0, 0, 9, 9);
-    for (int i = 0; i < 100; i++) {
-        write_data(0xFC);  // Red byte
-        write_data(0xFC);  // Red byte again
-        write_data(0xFC);  // Red byte again
-    }
-    sleep(2);
-
-    // Test 2: Try different byte positions for red
-    ili9481_set_window(20, 0, 29, 9);
-    for (int i = 0; i < 100; i++) {
-        write_data(0xFC);  // Byte 1: RED
-        write_data(0x00);  // Byte 2: nothing
-        write_data(0x00);  // Byte 3: nothing
-    }
-    sleep(2);
-
-    // Test 3: Red in position 2
-    ili9481_set_window(40, 0, 49, 9);
-    for (int i = 0; i < 100; i++) {
-        write_data(0x00);  // Byte 1: nothing
-        write_data(0xFC);  // Byte 2: RED
-        write_data(0x00);  // Byte 3: nothing
-    }
-    sleep(2);
-
-    // Test 4: Red in position 3
-    ili9481_set_window(60, 0, 69, 9);
-    for (int i = 0; i < 100; i++) {
-        write_data(0x00);  // Byte 1: nothing
-        write_data(0x00);  // Byte 2: nothing
-        write_data(0xFC);  // Byte 3: RED
-    }
-    
     return 0;
 }
