@@ -140,24 +140,18 @@ static void write_data(uint8_t data)
     set_line(cs_req, LCD_CS, 1);  // CS high
 }
 
-// 16bit per pixel
-// 16bit per pixel with R and B swapped
+// 18-bit color mode (RGB666) - sends 3 bytes per pixel
 static void write_data16(uint16_t color)
 {
-    // RGB565 format: RRRRR GGGGGG BBBBB
-    // Extract channels
-    uint8_t r = (color >> 11) & 0x1F;  // 5 bits red
-    uint8_t g = (color >> 5) & 0x3F;   // 6 bits green  
-    uint8_t b = color & 0x1F;          // 5 bits blue
+    // Convert RGB565 to RGB666
+    uint8_t r = ((color >> 11) & 0x1F);  // 5-bit red
+    uint8_t g = ((color >> 5) & 0x3F);   // 6-bit green
+    uint8_t b = (color & 0x1F);          // 5-bit blue
     
-    // Rebuild as BGR565 (swap R and B positions)
-    uint16_t bgr = (b << 11) | (g << 5) | r;
-    
-    uint8_t high = (bgr >> 8) & 0xFF;
-    uint8_t low = bgr & 0xFF;
-    
-    write_data(high);
-    write_data(low);
+    // Expand to 6 bits and send in upper 6 bits of each byte
+    write_data(r << 3);  // Red: xxxxx000 -> xxxxxx00
+    write_data(g << 2);  // Green: xxxxxx00
+    write_data(b << 3);  // Blue: xxxxx000 -> xxxxxx00
 }
 
 // Add a separate function for coordinates
@@ -637,31 +631,12 @@ int main(void){
 
     ili9481_set_window(0, 0, 9, 9);
 
-    // Test 1: Only RED bits set in RGB565 (0xF800)
-    printf("Sending 0xF800 (should be RED)...\n");
+    printf("Testing small fill (100 pixels)...\n");
+    ili9481_set_window(0, 0, 9, 9);  // 10x10 square
     for (int i = 0; i < 100; i++) {
-        write_data(0xF8);  // High byte
-        write_data(0x00);  // Low byte
+        write_data16(0xF800);  // Red
     }
-    sleep(2);
-
-    // Test 2: Only GREEN bits set in RGB565 (0x07E0)  
-    printf("Sending 0x07E0 (should be GREEN)...\n");
-    ili9481_set_window(20, 0, 29, 9);
-    for (int i = 0; i < 100; i++) {
-        write_data(0x07);  // High byte
-        write_data(0xE0);  // Low byte
-    }
-    sleep(2);
-
-    // Test 3: Only BLUE bits set in RGB565 (0x001F)
-    printf("Sending 0x001F (should be BLUE)...\n");
-    ili9481_set_window(40, 0, 49, 9);
-    for (int i = 0; i < 100; i++) {
-        write_data(0x00);  // High byte
-        write_data(0x1F);  // Low byte
-    }
-    sleep(2);
+    printf("Small fill done!\n");
     
     return 0;
 }
