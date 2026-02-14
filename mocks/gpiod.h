@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>   // for fprintf in error cases (optional)
+#include <stdlib.h>  // for exit() in error cases
 
 /* ================================
  * Opaque structs
@@ -16,13 +18,13 @@ struct gpiod_request_config { int dummy; };
  * Enums
  * ================================ */
 enum gpiod_line_direction {
-    GPIOD_LINE_DIRECTION_INPUT = 0,
+    GPIOD_LINE_DIRECTION_INPUT  = 0,
     GPIOD_LINE_DIRECTION_OUTPUT = 1
 };
 
 enum gpiod_line_value {
     GPIOD_LINE_VALUE_INACTIVE = 0,
-    GPIOD_LINE_VALUE_ACTIVE = 1
+    GPIOD_LINE_VALUE_ACTIVE   = 1
 };
 
 /* ================================
@@ -30,11 +32,6 @@ enum gpiod_line_value {
  * ================================ */
 struct gpiod_chip *
 gpiod_chip_open(const char *path);
-
-struct gpiod_line_request *
-gpiod_chip_request_lines(struct gpiod_chip *chip,
-                          struct gpiod_request_config *req_cfg,
-                          struct gpiod_line_config *line_cfg);
 
 void
 gpiod_chip_close(struct gpiod_chip *chip);
@@ -85,12 +82,26 @@ gpiod_request_config_set_consumer(struct gpiod_request_config *config,
                                   const char *consumer);
 
 /* ================================
- * Line request I/O
+ * Line request (core I/O functions)
  * ================================ */
+struct gpiod_line_request *
+gpiod_chip_request_lines(struct gpiod_chip *chip,
+                         struct gpiod_request_config *req_cfg,
+                         struct gpiod_line_config *line_cfg);
+
 int
 gpiod_line_request_set_value(struct gpiod_line_request *request,
                              unsigned int offset,
                              enum gpiod_line_value value);
 
+int
+gpiod_line_request_set_values(struct gpiod_line_request *request,
+                              const enum gpiod_line_value *values);
+
 void
 gpiod_line_request_release(struct gpiod_line_request *request);
+
+/* ================================
+ * Optional: for better debug output
+ * ================================ */
+void gpiod_mock_print_requested_lines(void);
