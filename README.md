@@ -6,11 +6,11 @@ Trynna make ILI9481 parallel TFT work with Rpi Zero 2W
 ## To Run
 
 ```bash
-gcc ili9481_parallel.c -o ili9481_parallel -lgpiod
-sudo ./ili9481_parallel
+gcc main.c -o main -lgpiod
+sudo ./main
 ```
 
-## To compile on Windows WSL (Ubuntu based)
+## To compile ili9481_parallel.c on Windows WSL (Ubuntu based)
 
 cd into correct windows directory
 
@@ -37,4 +37,17 @@ arm-linux-gnueabihf-gcc \
   -Wall -Wextra -Werror -pedantic \
   -I./mocks \
   ili9481_parallel.c
+```
+
+## Compiling main.c
+
+Cd into the correct directory and then:
+
+```bash
+arm-linux-gnueabihf-gcc \
+  -DCOMPILE_CHECK \
+  -fsyntax-only \
+  -Wall -Wextra -Werror -pedantic \
+  -I./mocks \
+  main.c
 ```

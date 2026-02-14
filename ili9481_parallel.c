@@ -172,13 +172,39 @@ static void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 
 static void fill_screen(uint16_t color)
 {
-    uint32_t pixels = (uint32_t)TFT_WIDTH * (uint32_t)TFT_HEIGHT;
+    const uint16_t width  = 320;
+    const uint16_t height = 480;
+    uint32_t pixels = (uint32_t)width * (uint32_t)height;
 
-    set_window(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
+    set_window(0, 0, width - 1, height - 1);
+    
+    // Pre-calculate color bytes
+    uint8_t r = ((color >> 11) & 0x1F);
+    uint8_t g = ((color >> 5) & 0x3F);
+    uint8_t b = (color & 0x1F);
+    uint8_t b_byte = b << 3;
+    uint8_t g_byte = g << 2;
+    uint8_t r_byte = r << 3;
 
+    // Keep CS low for entire operation
+    set_line(cs_req, LCD_CS, 0);
+    set_line(rs_req, LCD_RS, 1);  // Data mode
+    
     for (uint32_t i = 0; i < pixels; i++) {
-        write_data16(color);
+        set_data_bus(b_byte);
+        set_line(wr_req, LCD_WR, 0);
+        set_line(wr_req, LCD_WR, 1);
+        
+        set_data_bus(g_byte);
+        set_line(wr_req, LCD_WR, 0);
+        set_line(wr_req, LCD_WR, 1);
+        
+        set_data_bus(r_byte);
+        set_line(wr_req, LCD_WR, 0);
+        set_line(wr_req, LCD_WR, 1);
     }
+    
+    set_line(cs_req, LCD_CS, 1);
 }
 
  // Function to reverse bits
@@ -583,7 +609,7 @@ cleanup:
     printf("Done.\n\n");
 }
 
-int main(void){
+static void ili9481_start(void){
     chip = gpiod_chip_open(GPIOCHIP);
     if (!chip) {
         perror("gpiod_chip_open");
@@ -604,10 +630,4 @@ int main(void){
 
     ili9481_reset();
     ili9481_init();
-
-    fill_screen(WHITE);
-    usleep(2000);
-    fill_screen(RED);  
-
-    return 0;
 }
