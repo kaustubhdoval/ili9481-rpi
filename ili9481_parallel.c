@@ -174,7 +174,7 @@ static void fill_screen(uint16_t color)
 {
     uint32_t pixels = (uint32_t)TFT_WIDTH * (uint32_t)TFT_HEIGHT;
 
-    ili9481_set_window(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
+    set_window(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
 
     for (uint32_t i = 0; i < pixels; i++) {
         write_data16(color);
@@ -540,23 +540,23 @@ full_init:
     ili9481_init();
     
     printf("Filling screen with RED...\n");
-    ili9481_fill_screen(0xF800);  // Red
+    fill_screen(0xF800);  // Red
     sleep(2);
     
     printf("Filling screen with GREEN...\n");
-    ili9481_fill_screen(0x07E0);  // Green
+    fill_screen(0x07E0);  // Green
     sleep(2);
     
     printf("Filling screen with BLUE...\n");
-    ili9481_fill_screen(0x001F);  // Blue
+    fill_screen(0x001F);  // Blue
     sleep(2);
     
     printf("Filling screen with WHITE...\n");
-    ili9481_fill_screen(0xFFFF);  // White
+    fill_screen(0xFFFF);  // White
     sleep(2);
     
     printf("Filling screen with BLACK...\n");
-    ili9481_fill_screen(0x0000);  // Black
+    fill_screen(0x0000);  // Black
     sleep(2);
     
     printf("\n");
@@ -606,7 +606,7 @@ int main(void){
     ili9481_init();
 
     fill_screen(WHITE);
-    USLEEP(2000);
+    usleep(2000);
     fill_screen(RED);  
 
     return 0;

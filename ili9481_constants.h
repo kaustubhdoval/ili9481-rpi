@@ -8,13 +8,13 @@
 #define TFT_INIT_DELAY 0x02
 
 // COLORS
-#define WHITE   0xFFFF,  // White
-#define RED     0xF800,  // Red
-#define ORANGE  0xFD20,  // Orange
-#define YELLOW  0xFFE0,  // Yellow
-#define GREEN   0x07E0,  // Green
-#define BLUE    0x001F,  // Blue
-#define INDIGO  0x781F,  // Indigo
+#define WHITE   0xFFFF  // White
+#define RED     0xF800  // Red
+#define ORANGE  0xFD20  // Orange
+#define YELLOW  0xFFE0  // Yellow
+#define GREEN   0x07E0  // Green
+#define BLUE    0x001F  // Blue
+#define INDIGO  0x781F  // Indigo
 #define VIOLET  0xF81F   // Violet
 
 // Generic commands used by TFT_eSPI.cpp
