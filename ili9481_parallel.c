@@ -627,16 +627,43 @@ int main(void){
     ili9481_reset();
     ili9481_init();
 
-    printf("Testing channel isolation...\n");
+    // Test what happens when all 3 bytes are the same
+    printf("Testing identical bytes in 18-bit mode...\n");
 
+    // Test 1: All RED
     ili9481_set_window(0, 0, 9, 9);
-
-    printf("Testing small fill (100 pixels)...\n");
-    ili9481_set_window(0, 0, 9, 9);  // 10x10 square
     for (int i = 0; i < 100; i++) {
-        write_data16(0xF800);  // Red
+        write_data(0xFC);  // Red byte
+        write_data(0xFC);  // Red byte again
+        write_data(0xFC);  // Red byte again
     }
-    printf("Small fill done!\n");
+    sleep(2);
+
+    // Test 2: Try different byte positions for red
+    ili9481_set_window(20, 0, 29, 9);
+    for (int i = 0; i < 100; i++) {
+        write_data(0xFC);  // Byte 1: RED
+        write_data(0x00);  // Byte 2: nothing
+        write_data(0x00);  // Byte 3: nothing
+    }
+    sleep(2);
+
+    // Test 3: Red in position 2
+    ili9481_set_window(40, 0, 49, 9);
+    for (int i = 0; i < 100; i++) {
+        write_data(0x00);  // Byte 1: nothing
+        write_data(0xFC);  // Byte 2: RED
+        write_data(0x00);  // Byte 3: nothing
+    }
+    sleep(2);
+
+    // Test 4: Red in position 3
+    ili9481_set_window(60, 0, 69, 9);
+    for (int i = 0; i < 100; i++) {
+        write_data(0x00);  // Byte 1: nothing
+        write_data(0x00);  // Byte 2: nothing
+        write_data(0xFC);  // Byte 3: RED
+    }
     
     return 0;
 }
