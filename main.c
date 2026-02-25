@@ -1,4 +1,4 @@
-#include "ili9481_parallel.c"
+#include "ili9481_parallel.h"
 
 void demo_rainbow_bars(void)
 {
@@ -32,11 +32,14 @@ int main(void){
     ili9481_start();
 
     while (1) {
+        demo_rainbow_bars();
+        sleep(2);
         fill_screen(RED);
         sleep(5);
         fill_screen(GREEN);
         sleep(5);
     }
 
+    ili9481_stop();
     return 0;
 }

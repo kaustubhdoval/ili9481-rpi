@@ -5,9 +5,9 @@
 #include <stdint.h>
 #include "ili9481_constants.h"
 
-static void write_cmd(uint8_t cmd);
-static void write_data(uint8_t data);
-static void delay(uint32_t ms);
+void write_cmd(uint8_t cmd);
+void write_data(uint8_t data);
+void delay(uint32_t ms);
 
 #define ILI9481_INIT_CUSTOM 
 //#define ILI9481_INIT_1 // Original default
