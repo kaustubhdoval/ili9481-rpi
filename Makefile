@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -O0
 
 SRCS = main.c ili9481_parallel.c  
 OBJS = $(SRCS:.c=.o)

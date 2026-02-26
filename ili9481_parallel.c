@@ -91,6 +91,10 @@ void burst_write_bytes(const uint8_t *data, size_t len)
         GPIO_CLR = DATA_PIN_MASK;
         GPIO_SET = data_lut[data[i]];
         GPIO_CLR = (1 << LCD_WR);     // WR low
+
+        __asm__ volatile("nop");      // give display time to latch
+        __asm__ volatile("nop");
+
         GPIO_SET = (1 << LCD_WR);     // WR high
     }
 
@@ -190,7 +194,6 @@ void fill_screen(uint16_t color) {
     for (int i = 0; i < TFT_WIDTH * TFT_HEIGHT; i++) {
         backbuffer[i] = color;
     }
-    flush_backbuffer();
 }
 
 void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
@@ -199,7 +202,6 @@ void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
             backbuffer[(y + j) * TFT_WIDTH + (x + i)] = color;
         }
     }
-    flush_backbuffer();
 }
 
 void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color) {
@@ -215,7 +217,6 @@ void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t colo
         if (e2 >= dy) { err += dy; x0 += sx; }
         if (e2 <= dx) { err += dx; y0 += sy; }
     }
-    flush_backbuffer();
 }
 
 // Function to reverse bits
