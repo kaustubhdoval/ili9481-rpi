@@ -90,6 +90,10 @@ void burst_write_bytes(const uint8_t *data, size_t len)
     for (size_t i = 0; i < len; i++) {
         GPIO_CLR = DATA_PIN_MASK;
         GPIO_SET = data_lut[data[i]];
+
+        __asm__ volatile("nop");
+        __asm__ volatile("nop");  
+
         GPIO_CLR = (1 << LCD_WR);     // WR low
 
         __asm__ volatile("nop");      // give display time to latch
@@ -103,12 +107,7 @@ void burst_write_bytes(const uint8_t *data, size_t len)
 
 // Flush full backbuffer to display (converts to BGR666 bytes)
 void flush_backbuffer(void) {
-    size_t bytes = TFT_WIDTH * TFT_HEIGHT * 3;
-    uint8_t *buf = malloc(bytes);
-    if (!buf) {
-        fprintf(stderr, "Malloc failed\n");
-        exit(1);
-    }
+    static uint8_t buf[TFT_WIDTH * TFT_HEIGHT * 3];  // 3 bytes per pixel for BGR666
     
     for (int i = 0; i < TFT_WIDTH * TFT_HEIGHT; i++) {
         uint16_t color = backbuffer[i];
@@ -121,7 +120,7 @@ void flush_backbuffer(void) {
     }
     
     set_window(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
-    burst_write_bytes(buf, bytes);
+    burst_write_bytes(buf, TFT_WIDTH * TFT_HEIGHT * 3);
     free(buf);
 }
 
@@ -129,6 +128,8 @@ void flush_backbuffer(void) {
 void write_cmd(uint8_t cmd)
 {
     set_line(LCD_RS, 0);  // RS/DC = 0 for command
+    __asm__ volatile("nop");
+    __asm__ volatile("nop");  
     set_line(LCD_CS, 0);  // CS low
 
     set_data_bus(cmd);
