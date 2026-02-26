@@ -5,7 +5,7 @@
 #endif
 
 #include "ili9481_parallel.h"
-#include "pin_definitions.h"
+#include "ili9481_constants.h"
 
 #include <stdio.h>
 #include <stdlib.h>

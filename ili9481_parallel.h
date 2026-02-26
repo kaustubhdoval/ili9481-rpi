@@ -1,7 +1,6 @@
 #ifndef ili9481_parallel_h
 #define ili9481_parallel_h
 
-#include "pin_definitions.h"
 #include "ili9481_constants.h"
 #include "ili9481_init.h"   // Plethora of other init sequences
 

@@ -1,6 +1,6 @@
-Trynna make ILI9481 parallel TFT work with Rpi Zero 2W
+A lightweight C Library to control a TFT Display via a Raspberry Pi
 
-- The display is just a generic arduino shield
+- The display is a generic arduino uno TFT shield
 - ILI9481 Datasheet (https://www.displayfuture.com/Display/datasheet/controller/ILI9481.pdf)
 
 ## To Run
