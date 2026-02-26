@@ -1,5 +1,6 @@
 // ili9481_parallel.c
 #include "ili9481_parallel.h"
+#include "cp437font8x8.h"  // 8x8 font data
 
 // nop count a variable you can change at runtime
 #define WR_SETUP_NOPS  4    
@@ -202,7 +203,7 @@ void reset_dirty(void) {
     dirty_y1 = 0;
 }
 
-static void expand_dirty(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+void expand_dirty(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
     if (x < dirty_x0) dirty_x0 = x;
     if (y < dirty_y0) dirty_y0 = y;
     if ((x + w) > dirty_x1) dirty_x1 = x + w;
@@ -261,6 +262,52 @@ void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t colo
     }
 }
 
+void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg)
+{
+    if ((unsigned char)c > FONT_LAST) c = '?';
+
+    const unsigned char *glyph = &cp437font8x8[6 + ((unsigned char)c * FONT_HEIGHT)];
+
+    expand_dirty(x, y, FONT_WIDTH, FONT_HEIGHT);
+
+    for (int row = 0; row < FONT_HEIGHT; row++) {
+        unsigned char bits = glyph[row];
+        for (int col = 0; col < FONT_WIDTH; col++) {
+            if (bits & (1 << (7 - col))) {
+                backbuffer[(y + row) * TFT_WIDTH + (x + col)] = fg;
+            }
+        }
+    }
+}
+
+void draw_string(uint16_t x, uint16_t y, const char *str, uint16_t fg)
+{
+    uint16_t cursor_x = x;
+
+    while (*str) {
+        // Handle newline
+        if (*str == '\n') {
+            cursor_x = x;
+            y += FONT_HEIGHT;
+            str++;
+            continue;
+        }
+
+        // Stop if we'd go off screen horizontally — wrap to next line
+        if (cursor_x + FONT_WIDTH > TFT_WIDTH) {
+            cursor_x = x;
+            y += FONT_HEIGHT;
+        }
+
+        // Stop if we'd go off screen vertically
+        if (y + FONT_HEIGHT > TFT_HEIGHT) break;
+
+        draw_char(cursor_x, y, *str, fg);
+        cursor_x += FONT_WIDTH;
+        str++;
+    }
+}
+
 // Function to reverse bits
 uint8_t reverse_bits(uint8_t b) {
     uint8_t r = 0;
@@ -287,7 +334,7 @@ void ili9481_reset(void)
 
 void ili9481_start(void)
 {
-    gpio_mmap_init();       // replaces all the gpiod chip/line setup
+    gpio_mmap_init();      
     ili9481_reset();
     ili9481_init();
     reset_dirty();

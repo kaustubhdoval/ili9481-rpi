@@ -10,7 +10,6 @@ void demo_rainbow_bars(void) {
         int h  = (i == 6) ? (TFT_HEIGHT - y0) : bar_height;
         fill_rect(0, y0, TFT_WIDTH, h, colors[i]);
     }
-    flush_backbuffer();  // single flush after all drawing is done
 }
 
 int main(void){
@@ -18,12 +17,19 @@ int main(void){
 
     while (1) {
         demo_rainbow_bars();
+        flush_backbuffer();  
         sleep(2);
+        
         fill_screen(WHITE);
+        draw_char(120, 160, 'K', VIOLET);
         flush_backbuffer();
         sleep(2);
+        
+        draw_string(100, 200, "Hello World!", VIOLET);
+        flush_backbuffer();
+        sleep(2);
+
         fill_rect(50, 50, 220, 380, GREEN);
-        draw_line(0, 0, 319, 479, BLUE);
         flush_backbuffer();
         sleep(2);
     }
