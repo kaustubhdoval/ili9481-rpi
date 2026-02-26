@@ -15,24 +15,21 @@ void demo_rainbow_bars(void) {
 int main(void){
     ili9481_start();
 
-    while (1) {
-        demo_rainbow_bars();
-        flush_backbuffer();  
-        sleep(2);
-        
-        fill_screen(WHITE);
-        draw_char(120, 160, 'K', VIOLET);
-        flush_backbuffer();
-        sleep(2);
-        
-        draw_string(100, 200, "Hello World!", VIOLET);
-        flush_backbuffer();
-        sleep(2);
+    demo_rainbow_bars();
+    flush_backbuffer();  
+    sleep(2);
+    
+    fill_screen(WHITE);
+    draw_char(120, 160, 'K', VIOLET);
+    flush_backbuffer();
+    sleep(2);
+    
+    draw_string(100, 200, "Hello World!", VIOLET);
+    flush_backbuffer();
+    sleep(2);
 
-        fill_rect(50, 50, 220, 380, GREEN);
-        flush_backbuffer();
-        sleep(2);
-    }
+    fill_rect(50, 50, 220, 380, GREEN);
+    flush_backbuffer();
 
     ili9481_stop();
     return 0;

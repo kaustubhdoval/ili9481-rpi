@@ -273,7 +273,7 @@ void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg)
     for (int row = 0; row < FONT_HEIGHT; row++) {
         unsigned char bits = glyph[row];
         for (int col = 0; col < FONT_WIDTH; col++) {
-            if (bits & (1 << (7 - col))) {
+            if (bits & (1 << (7 - col))) {   
                 backbuffer[(y + row) * TFT_WIDTH + (x + col)] = fg;
             }
         }
