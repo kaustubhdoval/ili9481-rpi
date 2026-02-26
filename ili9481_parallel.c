@@ -131,10 +131,12 @@ void write_cmd(uint8_t cmd)
     set_line(LCD_RS, 0);  // RS/DC = 0 for command
     __asm__ volatile("nop"); __asm__ volatile("nop");  
     set_line(LCD_CS, 0);  // CS low
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
 
     set_data_bus(cmd);
 
     set_line(LCD_WR, 0);  // WR pulse
+    __asm__ volatile("nop"); __asm__ volatile("nop");      
     set_line(LCD_WR, 1);
     set_line(LCD_CS, 1);  // CS high
 }
@@ -145,10 +147,12 @@ void write_data(uint8_t data)
     set_line(LCD_RS, 1);  // RS/DC = 1 for data
     __asm__ volatile("nop"); __asm__ volatile("nop");  
     set_line(LCD_CS, 0);  // CS low
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
 
     set_data_bus(data);
 
     set_line(LCD_WR, 0);
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
     set_line(LCD_WR, 1);
     set_line(LCD_CS, 1);  // CS high
 }
