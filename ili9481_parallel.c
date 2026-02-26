@@ -121,7 +121,6 @@ void flush_backbuffer(void) {
     
     set_window(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
     burst_write_bytes(buf, TFT_WIDTH * TFT_HEIGHT * 3);
-    free(buf);
 }
 
 // Write one 8-bit command
