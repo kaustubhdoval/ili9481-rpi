@@ -1,130 +1,96 @@
 // ili9481_parallel.c
 #include "ili9481_parallel.h"
 
-// gpiod variables
-struct gpiod_chip *chip;
-struct gpiod_line_request *rd_req, *wr_req, *rs_req, *cs_req, *rst_req;
-struct gpiod_line_request *data_req = NULL;
-
 unsigned int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
 uint16_t backbuffer[TFT_WIDTH * TFT_HEIGHT];
 
-struct gpiod_line_request *req_out_line(unsigned int gpio, const char *name, int init)
+static void gpio_set_output(uint8_t pin)
 {
-    struct gpiod_line_settings *settings;
-    struct gpiod_line_config *config;
-    struct gpiod_request_config *req_config;
-    struct gpiod_line_request *request;
-    
-    settings = gpiod_line_settings_new();
-    if (!settings) {
-        fprintf(stderr, "Failed to create line settings\n");
-        exit(1);
-    }
-    
-    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
-    gpiod_line_settings_set_output_value(settings, init ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);
-    
-    config = gpiod_line_config_new();
-    if (!config) {
-        fprintf(stderr, "Failed to create line config\n");
-        exit(1);
-    }
-    
-    if (gpiod_line_config_add_line_settings(config, &gpio, 1, settings) < 0) {
-        fprintf(stderr, "Failed to add line settings\n");
-        exit(1);
-    }
-    
-    req_config = gpiod_request_config_new();
-    if (!req_config) {
-        fprintf(stderr, "Failed to create request config\n");
-        exit(1);
-    }
-    gpiod_request_config_set_consumer(req_config, name);
-    
-    request = gpiod_chip_request_lines(chip, req_config, config);
-    if (!request) {
-        fprintf(stderr, "Failed to request line %d\n", gpio);
-        exit(1);
-    }
-    
-    gpiod_line_config_free(config);
-    gpiod_request_config_free(req_config);
-    
-    return request;
+    // Each GPFSEL register controls 10 pins, 3 bits each
+    uint32_t reg_offset = (pin / 10) * 4;          // which GPFSEL register (offset in bytes)
+    uint32_t bit_offset = (pin % 10) * 3;          // which 3-bit field within that register
+    volatile uint32_t *fsel = (volatile uint32_t*)(gpio_base + reg_offset);
+    *fsel = (*fsel & ~(7 << bit_offset)) | (1 << bit_offset);  // set to 001 = output
 }
 
-struct gpiod_line_request *req_out_lines(unsigned int *gpios, unsigned int num_gpios, const char *name, int init_val)
+void gpio_mmap_init(void)
 {
-    struct gpiod_line_settings *settings;
-    struct gpiod_line_config *config;
-    struct gpiod_request_config *req_config;
-    struct gpiod_line_request *request;
-    
-    settings = gpiod_line_settings_new();
-    if (!settings) {
-        fprintf(stderr, "Failed to create line settings\n");
+    int fd = open("/dev/gpiomem", O_RDWR | O_SYNC);
+    if (fd < 0) {
+        perror("open /dev/gpiomem");
         exit(1);
     }
-    
-    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
-    gpiod_line_settings_set_output_value(settings, init_val ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);
-    
-    config = gpiod_line_config_new();
-    if (!config) {
-        fprintf(stderr, "Failed to create line config\n");
+
+    gpio_base = (volatile uint8_t*)mmap(NULL, GPIO_MAP_SIZE,
+                                         PROT_READ | PROT_WRITE,
+                                         MAP_SHARED, fd, GPIO_BASE);
+    close(fd);
+
+    if (gpio_base == MAP_FAILED) {
+        perror("mmap");
         exit(1);
     }
-    
-    if (gpiod_line_config_add_line_settings(config, gpios, num_gpios, settings) < 0) {
-        fprintf(stderr, "Failed to add line settings\n");
-        exit(1);
+
+    // Set all our pins to output mode
+    uint8_t all_pins[] = {LCD_RD, LCD_WR, LCD_RS, LCD_CS, LCD_RST,
+                          LCD_D0, LCD_D1, LCD_D2, LCD_D3,
+                          LCD_D4, LCD_D5, LCD_D6, LCD_D7};
+    for (int i = 0; i < 13; i++)
+        gpio_set_output(all_pins[i]);
+
+    // Drive control lines high (idle state)
+    GPIO_SET = (1<<LCD_RD)|(1<<LCD_WR)|(1<<LCD_RS)|(1<<LCD_CS)|(1<<LCD_RST);
+
+    // Precompute 256-entry LUT for data bus bit scatter
+    for (int val = 0; val < 256; val++) {
+        uint32_t mask = 0;
+        if (val & (1<<0)) mask |= (1<<LCD_D0);
+        if (val & (1<<1)) mask |= (1<<LCD_D1);
+        if (val & (1<<2)) mask |= (1<<LCD_D2);
+        if (val & (1<<3)) mask |= (1<<LCD_D3);
+        if (val & (1<<4)) mask |= (1<<LCD_D4);
+        if (val & (1<<5)) mask |= (1<<LCD_D5);
+        if (val & (1<<6)) mask |= (1<<LCD_D6);
+        if (val & (1<<7)) mask |= (1<<LCD_D7);
+        data_lut[val] = mask;
     }
-    
-    req_config = gpiod_request_config_new();
-    if (!req_config) {
-        fprintf(stderr, "Failed to create request config\n");
-        exit(1);
-    }
-    gpiod_request_config_set_consumer(req_config, name);
-    
-    request = gpiod_chip_request_lines(chip, req_config, config);
-    if (!request) {
-        fprintf(stderr, "Failed to request lines\n");
-        exit(1);
-    }
-    
-    gpiod_line_settings_free(settings);
-    gpiod_line_config_free(config);
-    gpiod_request_config_free(req_config);
-    
-    return request;
 }
 
-void set_line(struct gpiod_line_request *req, unsigned int offset, int val)
+void gpio_mmap_cleanup(void)
 {
-    enum gpiod_line_value value = val ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
-    if (gpiod_line_request_set_value(req, offset, value) < 0) {
-        fprintf(stderr, "Failed to set line value\n");
-        exit(1);
+    if (gpio_base && gpio_base != MAP_FAILED) {
+        munmap((void*)gpio_base, GPIO_MAP_SIZE);
+        gpio_base = NULL;
     }
+}
+
+static inline void set_line(uint8_t pin, int val)
+{
+    if (val) GPIO_SET = (1 << pin);
+    else     GPIO_CLR = (1 << pin);
+}
+
+static inline void set_data_bus(uint8_t value)
+{
+    GPIO_CLR = DATA_PIN_MASK;          // clear all data pins
+    GPIO_SET = data_lut[value];        // set the required ones high
 }
 
 // Burst write multiple data bytes with CS low throughout
 // Assume RS is already set to data mode before calling this function
 void burst_write_bytes(const uint8_t *data, size_t len)
 {
-    set_line(rs_req, LCD_RS, 1);  // Data mode
-    set_line(cs_req, LCD_CS, 0);  // CS low for entire burst
-    
+    set_line(LCD_RS, 1);
+    set_line(LCD_CS, 0);
+
     for (size_t i = 0; i < len; i++) {
-        set_data_bus(data[i]);
-        set_line(wr_req, LCD_WR, 0);
-        set_line(wr_req, LCD_WR, 1);
+        GPIO_CLR = DATA_PIN_MASK;
+        GPIO_SET = data_lut[data[i]];
+        GPIO_CLR = (1 << LCD_WR);     // WR low
+        GPIO_SET = (1 << LCD_WR);     // WR high
     }
-    
-    set_line(cs_req, LCD_CS, 1);  // CS high
+
+    set_line(LCD_CS, 1);
 }
 
 // Flush full backbuffer to display (converts to BGR666 bytes)
@@ -151,46 +117,30 @@ void flush_backbuffer(void) {
     free(buf);
 }
 
-void set_data_bus(uint8_t value)
-{
-    enum gpiod_line_value values[8];
-    for (int i = 0; i < 8; i++) {
-        values[i] = ((value >> i) & 1) ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
-    }
-    if (gpiod_line_request_set_values(data_req, values) < 0) {   
-        fprintf(stderr, "Failed to set data bus values\n");
-        exit(1);
-    }
-}
-
 // Write one 8-bit command
 void write_cmd(uint8_t cmd)
 {
-    set_line(rs_req, LCD_RS, 0);  // RS/DC = 0 for command
-    set_line(cs_req, LCD_CS, 0);  // CS low
+    set_line(LCD_RS, 0);  // RS/DC = 0 for command
+    set_line(LCD_CS, 0);  // CS low
 
     set_data_bus(cmd);
 
-    set_line(wr_req, LCD_WR, 0);  // WR pulse
-    set_line(wr_req, LCD_WR, 1);
-    set_line(cs_req, LCD_CS, 1);  // CS high
-}
-
-void delay(uint32_t ms){
-    usleep(ms * 1000);
+    set_line(LCD_WR, 0);  // WR pulse
+    set_line(LCD_WR, 1);
+    set_line(LCD_CS, 1);  // CS high
 }
 
 // Write one 8-bit data value
 void write_data(uint8_t data)
 {
-    set_line(rs_req, LCD_RS, 1);  // RS/DC = 1 for data
-    set_line(cs_req, LCD_CS, 0);  // CS low
+    set_line(LCD_RS, 1);  // RS/DC = 1 for data
+    set_line(LCD_CS, 0);  // CS low
 
     set_data_bus(data);
 
-    set_line(wr_req, LCD_WR, 0);
-    set_line(wr_req, LCD_WR, 1);
-    set_line(cs_req, LCD_CS, 1);  // CS high
+    set_line(LCD_WR, 0);
+    set_line(LCD_WR, 1);
+    set_line(LCD_CS, 1);  // CS high
 }
 
 // 18-bit color mode (BGR666) - sends 3 bytes per pixel
@@ -214,19 +164,8 @@ void write_coord16(uint16_t value)
     write_data(value & 0xFF);           // Low byte
 }
 
-void ili9481_reset(void)
-{
-    // VCI power stable
-    usleep(10000);  // Wait 10ms after power on
-    
-    set_line(rst_req, LCD_RST, 1);
-    usleep(1000);   // RESX high for 1ms
-    
-    set_line(rst_req, LCD_RST, 0);
-    usleep(10000);  // RESX low for at least 10μs 
-    
-    set_line(rst_req, LCD_RST, 1);
-    usleep(120000); // Wait 120ms before sending commands 
+void delay(uint32_t ms){
+    usleep(ms * 1000);
 }
 
 // Set full window (0..319, 0..479)
@@ -259,38 +198,29 @@ uint8_t reverse_bits(uint8_t b) {
     return r;
 }
 
-void ili9481_start(void){
-    chip = gpiod_chip_open(GPIOCHIP);
-    if (!chip) {
-        perror("gpiod_chip_open");
-    }
+void ili9481_reset(void)
+{
+    // VCI power stable
+    usleep(10000);  // Wait 10ms after power on
+    
+    set_line(LCD_RST, 1);
+    usleep(1000);   // RESX high for 1ms
+    
+    set_line(LCD_RST, 0);
+    usleep(10000);  // RESX low for at least 10μs 
+    
+    set_line(LCD_RST, 1);
+    usleep(120000); // Wait 120ms before sending commands 
+}
 
-    // Request control lines (using single-line function)
-    rd_req  = req_out_line(LCD_RD,  "lcd-rd", 1);
-    wr_req  = req_out_line(LCD_WR,  "lcd-wr", 1);
-    rs_req  = req_out_line(LCD_RS,  "lcd-rs", 1);
-    cs_req  = req_out_line(LCD_CS,  "lcd-cs", 1);
-    rst_req = req_out_line(LCD_RST, "lcd-rst", 1);
-
-    // Request data lines (using multi-line function)
-    data_req = req_out_lines(data_gpios, 8, "lcd_data", 0);  // Init all low
-
+void ili9481_start(void)
+{
+    gpio_mmap_init();       // replaces all the gpiod chip/line setup
     ili9481_reset();
     ili9481_init();
 }
 
 void ili9481_stop(void)
 {
-    // Release control lines
-    if (rd_req)  { gpiod_line_request_release(rd_req);  rd_req  = NULL; }
-    if (wr_req)  { gpiod_line_request_release(wr_req);  wr_req  = NULL; }
-    if (rs_req)  { gpiod_line_request_release(rs_req);  rs_req  = NULL; }
-    if (cs_req)  { gpiod_line_request_release(cs_req);  cs_req  = NULL; }
-    if (rst_req) { gpiod_line_request_release(rst_req); rst_req = NULL; }
-
-    // Release data bus 
-    if (data_req) { gpiod_line_request_release(data_req); data_req = NULL; }
-
-    // Close Chip
-    if (chip) { gpiod_chip_close(chip); chip = NULL; }
+    gpio_mmap_cleanup();
 }

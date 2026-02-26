@@ -1,20 +1,9 @@
-#ifdef COMPILE_CHECK
-#include "gpiod.h"
-#else
-#include <gpiod.h>
-#endif
-
 #include "ili9481_parallel.h"
 #include "ili9481_constants.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
-// gpiod variables
-struct gpiod_chip *chip;
-struct gpiod_line_request *rd_req, *wr_req, *rs_req, *cs_req, *rst_req;
-struct gpiod_line_request *data_req = NULL;
 
 void test_data_bus_pattern(void)
 {
@@ -45,7 +34,7 @@ void test_suite(void)
     printf("\n");
 
     // Keep RD high always
-    set_line(rd_req, LCD_RD, 1);
+    set_line(LCD_RD, 1);
 
     // ====================================================================
     // TEST 1: Data Bus Bit Pattern Test
@@ -59,15 +48,15 @@ void test_suite(void)
     printf("----------------------\n");
     printf("Performing hardware reset sequence...\n");
     
-    set_line(rst_req, LCD_RST, 1);
+    set_line(LCD_RST, 1);
     printf("  RST = HIGH\n");
     usleep(10000);
     
-    set_line(rst_req, LCD_RST, 0);
+    set_line(LCD_RST, 0);
     printf("  RST = LOW (50ms)\n");
     usleep(50000);
     
-    set_line(rst_req, LCD_RST, 1);
+    set_line(LCD_RST, 1);
     printf("  RST = HIGH (waiting 200ms)\n");
     usleep(200000);
     
@@ -130,38 +119,38 @@ void test_suite(void)
     printf("Testing RS=1 for command (inverted)...\n\n");
     
     // Hardware reset again
-    set_line(rst_req, LCD_RST, 0);
+    set_line(LCD_RST, 0);
     usleep(50000);
-    set_line(rst_req, LCD_RST, 1);
+    set_line(LCD_RST, 1);
     usleep(200000);
     
     // Send commands with INVERTED RS
     printf("Sending commands with RS inverted...\n");
     
     // Sleep Out with inverted RS
-    set_line(rs_req, LCD_RS, 1);  // INVERTED (normally would be 0)
-    set_line(cs_req, LCD_CS, 0);
+    set_line(LCD_RS, 1);  // INVERTED (normally would be 0)
+    set_line(LCD_CS, 0);
     usleep(10);
     set_data_bus(0x11);
     usleep(10);
-    set_line(wr_req, LCD_WR, 0);
+    set_line(LCD_WR, 0);
     usleep(10);
-    set_line(wr_req, LCD_WR, 1);
+    set_line(LCD_WR, 1);
     usleep(10);
-    set_line(cs_req, LCD_CS, 1);
+    set_line(LCD_CS, 1);
     usleep(120000);
     
     // Display ON with inverted RS
-    set_line(rs_req, LCD_RS, 1);  // INVERTED
-    set_line(cs_req, LCD_CS, 0);
+    set_line(LCD_RS, 1);  // INVERTED
+    set_line(LCD_CS, 0);
     usleep(10);
     set_data_bus(0x29);
     usleep(10);
-    set_line(wr_req, LCD_WR, 0);
+    set_line(LCD_WR, 0);
     usleep(10);
-    set_line(wr_req, LCD_WR, 1);
+    set_line(LCD_WR, 1);
     usleep(10);
-    set_line(cs_req, LCD_CS, 1);
+    set_line(LCD_CS, 1);
     usleep(100000);
     
     printf("\nDid you see ANY change now? (y/n): ");
@@ -187,39 +176,39 @@ void test_suite(void)
     printf("Testing inverted WR...\n\n");
     
     // Hardware reset again
-    set_line(rst_req, LCD_RST, 0);
+    set_line(LCD_RST, 0);
     usleep(50000);
-    set_line(rst_req, LCD_RST, 1);
+    set_line(LCD_RST, 1);
     usleep(200000);
     
     // Sleep Out with inverted WR
     printf("Sending Sleep Out (0x11) with WR inverted...\n");
-    set_line(rs_req, LCD_RS, 0);
-    set_line(cs_req, LCD_CS, 0);
-    set_line(wr_req, LCD_WR, 0);  // WR idle LOW (inverted)
+    set_line(LCD_RS, 0);
+    set_line(LCD_CS, 0);
+    set_line(LCD_WR, 0);  // WR idle LOW (inverted)
     usleep(10);
     set_data_bus(0x11);
     usleep(10);
-    set_line(wr_req, LCD_WR, 1);  // WR pulse HIGH (inverted)
+    set_line(LCD_WR, 1);  // WR pulse HIGH (inverted)
     usleep(10);
-    set_line(wr_req, LCD_WR, 0);  // Back to idle LOW
+    set_line(LCD_WR, 0);  // Back to idle LOW
     usleep(10);
-    set_line(cs_req, LCD_CS, 1);
+    set_line(LCD_CS, 1);
     usleep(120000);
     
     // Display ON with inverted WR
     printf("Sending Display ON (0x29) with WR inverted...\n");
-    set_line(rs_req, LCD_RS, 0);
-    set_line(cs_req, LCD_CS, 0);
-    set_line(wr_req, LCD_WR, 0);  // WR idle LOW
+    set_line(LCD_RS, 0);
+    set_line(LCD_CS, 0);
+    set_line(LCD_WR, 0);  // WR idle LOW
     usleep(10);
     set_data_bus(0x29);
     usleep(10);
-    set_line(wr_req, LCD_WR, 1);  // WR pulse HIGH
+    set_line(LCD_WR, 1);  // WR pulse HIGH
     usleep(10);
-    set_line(wr_req, LCD_WR, 0);  // Back to idle LOW
+    set_line(LCD_WR, 0);  // Back to idle LOW
     usleep(10);
-    set_line(cs_req, LCD_CS, 1);
+    set_line(LCD_CS, 1);
     usleep(100000);
     
     printf("\nDid you see ANY change now? (y/n): ");
@@ -243,37 +232,37 @@ void test_suite(void)
     printf("Testing with both RS and WR inverted...\n\n");
     
     // Hardware reset again
-    set_line(rst_req, LCD_RST, 0);
+    set_line(LCD_RST, 0);
     usleep(50000);
-    set_line(rst_req, LCD_RST, 1);
+    set_line(LCD_RST, 1);
     usleep(200000);
     
     // Sleep Out with BOTH inverted
-    set_line(rs_req, LCD_RS, 1);  // RS INVERTED
-    set_line(cs_req, LCD_CS, 0);
-    set_line(wr_req, LCD_WR, 0);  // WR idle LOW
+    set_line(LCD_RS, 1);  // RS INVERTED
+    set_line(LCD_CS, 0);
+    set_line(LCD_WR, 0);  // WR idle LOW
     usleep(10);
     set_data_bus(0x11);
     usleep(10);
-    set_line(wr_req, LCD_WR, 1);  // WR pulse HIGH
+    set_line(LCD_WR, 1);  // WR pulse HIGH
     usleep(10);
-    set_line(wr_req, LCD_WR, 0);
+    set_line(LCD_WR, 0);
     usleep(10);
-    set_line(cs_req, LCD_CS, 1);
+    set_line(LCD_CS, 1);
     usleep(120000);
     
     // Display ON with BOTH inverted
-    set_line(rs_req, LCD_RS, 1);  // RS INVERTED
-    set_line(cs_req, LCD_CS, 0);
-    set_line(wr_req, LCD_WR, 0);  // WR idle LOW
+    set_line(LCD_RS, 1);  // RS INVERTED
+    set_line(LCD_CS, 0);
+    set_line(LCD_WR, 0);  // WR idle LOW
     usleep(10);
     set_data_bus(0x29);
     usleep(10);
-    set_line(wr_req, LCD_WR, 1);  // WR pulse HIGH
+    set_line(LCD_WR, 1);  // WR pulse HIGH
     usleep(10);
-    set_line(wr_req, LCD_WR, 0);
+    set_line(LCD_WR, 0);
     usleep(10);
-    set_line(cs_req, LCD_CS, 1);
+    set_line(LCD_CS, 1);
     usleep(100000);
     
     printf("\nDid you see ANY change now? (y/n): ");
@@ -299,24 +288,24 @@ void test_suite(void)
     printf("Try these commands with REVERSED bit order:\n\n");
     
     // Hardware reset
-    set_line(rst_req, LCD_RST, 0);
+    set_line(LCD_RST, 0);
     usleep(50000);
-    set_line(rst_req, LCD_RST, 1);
+    set_line(LCD_RST, 1);
     usleep(200000);
     
     // Sleep Out (0x11) with reversed bits
     uint8_t cmd_reversed = reverse_bits(0x11);
     printf("Sending 0x11 as 0x%02X (reversed bits)...\n", cmd_reversed);
-    set_line(rs_req, LCD_RS, 0);
-    set_line(cs_req, LCD_CS, 0);
+    set_line(LCD_RS, 0);
+    set_line(LCD_CS, 0);
     usleep(10);
     set_data_bus(cmd_reversed);
     usleep(10);
-    set_line(wr_req, LCD_WR, 0);
+    set_line(LCD_WR, 0);
     usleep(10);
-    set_line(wr_req, LCD_WR, 1);
+    set_line(LCD_WR, 1);
     usleep(10);
-    set_line(cs_req, LCD_CS, 1);
+    set_line(LCD_CS, 1);
     usleep(120000);
     
     printf("\nDid you see ANY change? (y/n): ");
@@ -390,24 +379,9 @@ full_init:
     printf("  SUCCESS! Display is working!\n");
     printf("================================================================\n");
     printf("\n");
-
-    // ====================================================================
-    // Cleanup
-    // ====================================================================
-cleanup:
-    printf("\nCleaning up GPIO...\n");
-    gpiod_line_request_release(rd_req);
-    gpiod_line_request_release(wr_req);
-    gpiod_line_request_release(rs_req);
-    gpiod_line_request_release(cs_req);
-    gpiod_line_request_release(rst_req);
-    if (data_req) {
-        gpiod_line_request_release(data_req);
-    data_req = NULL;
-}
-    gpiod_chip_close(chip);
     
-    printf("Done.\n\n");
+    cleanup:
+        printf("Done.\n\n");
 }
 
 int main(void)

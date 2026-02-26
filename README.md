@@ -25,18 +25,15 @@ full compile
 arm-linux-gnueabihf-gcc \
   -Wall -Wextra -std=c11 \
   ili9481_parallel.c \
-  -lgpiod \
-  -o app
+  -o ili9481_parallel.c
 ```
 
 compile without checking libs (not recommended)
 
 ```bash
 arm-linux-gnueabihf-gcc \
-  -DCOMPILE_CHECK \
   -fsyntax-only \
   -Wall -Wextra -Werror -pedantic \
-  -I./mocks \
   ili9481_parallel.c
 ```
 
@@ -46,9 +43,7 @@ Cd into the correct directory and then:
 
 ```bash
 arm-linux-gnueabihf-gcc \
-  -DCOMPILE_CHECK \
   -fsyntax-only \
   -Wall -Wextra -Werror -pedantic \
-  -I./mocks \
   main.c
 ```
