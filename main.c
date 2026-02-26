@@ -1,4 +1,4 @@
-#include "ili9481_parallel.c"
+#include "ili9481_parallel.h"
 
 void demo_rainbow_bars(void)
 {
@@ -20,7 +20,7 @@ void demo_rainbow_bars(void)
         int y1 = (i + 1) * bar_height - 1;
         if (i == 6) y1 = 479;  // Last bar fills to bottom
         
-        ili9481_set_window(0, y0, 319, y1);
+        set_window(0, y0, 319, y1);
         int pixels = 320 * (y1 - y0 + 1);
         for (int p = 0; p < pixels; p++) {
             write_data16(colors[i]);
@@ -31,7 +31,15 @@ void demo_rainbow_bars(void)
 int main(void){
     ili9481_start();
 
-    demo_rainbow_bars();
+    while (1) {
+        demo_rainbow_bars();
+        sleep(2);
+        fill_screen(RED);
+        sleep(5);
+        fill_screen(GREEN);
+        sleep(5);
+    }
 
+    ili9481_stop();
     return 0;
 }

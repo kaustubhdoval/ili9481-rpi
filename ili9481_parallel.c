@@ -1,127 +1,154 @@
 // ili9481_parallel.c
-// ILI9481 driver using libgpiod API on Raspberry Pi Zero 2 W
+#include "ili9481_parallel.h"
 
-#include "pin_definitions.h"
-#include "ili9481_constants.h"
-#include "ili9481_init.h"   // Plethora of other init sequences
+unsigned int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
 
-#ifdef COMPILE_CHECK
-#include "gpiod.h"
-#else
-#include <gpiod.h>
-#endif
+volatile uint8_t *gpio_base = NULL;
+uint32_t data_lut[256];
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdint.h>
+uint16_t backbuffer[TFT_WIDTH * TFT_HEIGHT];
 
-#define GPIOCHIP "/dev/gpiochip0"
-
-static struct gpiod_chip *chip;
-static struct gpiod_line_request *rd_req, *wr_req, *rs_req, *cs_req, *rst_req;
-static struct gpiod_line_request *d_req[8];
-
-// Helper to request one output line with libgpiod v2
-static struct gpiod_line_request *req_out_line(unsigned int gpio, const char *name, int init)
+static void gpio_set_output(uint8_t pin)
 {
-    struct gpiod_line_settings *settings;
-    struct gpiod_line_config *config;
-    struct gpiod_request_config *req_config;
-    struct gpiod_line_request *request;
-    
-    settings = gpiod_line_settings_new();
-    if (!settings) {
-        fprintf(stderr, "Failed to create line settings\n");
-        exit(1);
-    }
-    
-    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
-    gpiod_line_settings_set_output_value(settings, init ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);
-    
-    config = gpiod_line_config_new();
-    if (!config) {
-        fprintf(stderr, "Failed to create line config\n");
-        exit(1);
-    }
-    
-    if (gpiod_line_config_add_line_settings(config, &gpio, 1, settings) < 0) {
-        fprintf(stderr, "Failed to add line settings\n");
-        exit(1);
-    }
-    
-    req_config = gpiod_request_config_new();
-    if (!req_config) {
-        fprintf(stderr, "Failed to create request config\n");
-        exit(1);
-    }
-    gpiod_request_config_set_consumer(req_config, name);
-    
-    request = gpiod_chip_request_lines(chip, req_config, config);
-    if (!request) {
-        fprintf(stderr, "Failed to request line %d\n", gpio);
-        exit(1);
-    }
-    
-    gpiod_line_settings_free(settings);
-    gpiod_line_config_free(config);
-    gpiod_request_config_free(req_config);
-    
-    return request;
+    // Each GPFSEL register controls 10 pins, 3 bits each
+    uint32_t reg_offset = (pin / 10) * 4;          // which GPFSEL register (offset in bytes)
+    uint32_t bit_offset = (pin % 10) * 3;          // which 3-bit field within that register
+    volatile uint32_t *fsel = (volatile uint32_t*)(gpio_base + reg_offset);
+    *fsel = (*fsel & ~(7 << bit_offset)) | (1 << bit_offset);  // set to 001 = output
 }
 
-static void set_line(struct gpiod_line_request *req, unsigned int offset, int val)
+void gpio_mmap_init(void)
 {
-    enum gpiod_line_value value = val ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
-    if (gpiod_line_request_set_value(req, offset, value) < 0) {
-        fprintf(stderr, "Failed to set line value\n");
+    int fd = open("/dev/gpiomem", O_RDWR | O_SYNC);
+    if (fd < 0) {
+        perror("open /dev/gpiomem");
         exit(1);
+    }
+
+    gpio_base = (volatile uint8_t*)mmap(NULL, GPIO_MAP_SIZE,
+                                         PROT_READ | PROT_WRITE,
+                                         MAP_SHARED, fd, GPIO_BASE);
+    close(fd);
+
+    if (gpio_base == MAP_FAILED) {
+        perror("mmap");
+        exit(1);
+    }
+
+    // Set all our pins to output mode
+    uint8_t all_pins[] = {LCD_RD, LCD_WR, LCD_RS, LCD_CS, LCD_RST,
+                          LCD_D0, LCD_D1, LCD_D2, LCD_D3,
+                          LCD_D4, LCD_D5, LCD_D6, LCD_D7};
+    for (int i = 0; i < 13; i++)
+        gpio_set_output(all_pins[i]);
+
+    // Drive control lines high (idle state)
+    GPIO_SET = (1<<LCD_RD)|(1<<LCD_WR)|(1<<LCD_RS)|(1<<LCD_CS)|(1<<LCD_RST);
+
+    // Precompute 256-entry LUT for data bus bit scatter
+    for (int val = 0; val < 256; val++) {
+        uint32_t mask = 0;
+        if (val & (1<<0)) mask |= (1<<LCD_D0);
+        if (val & (1<<1)) mask |= (1<<LCD_D1);
+        if (val & (1<<2)) mask |= (1<<LCD_D2);
+        if (val & (1<<3)) mask |= (1<<LCD_D3);
+        if (val & (1<<4)) mask |= (1<<LCD_D4);
+        if (val & (1<<5)) mask |= (1<<LCD_D5);
+        if (val & (1<<6)) mask |= (1<<LCD_D6);
+        if (val & (1<<7)) mask |= (1<<LCD_D7);
+        data_lut[val] = mask;
     }
 }
 
-static void set_data_bus(uint8_t value)
+void gpio_mmap_cleanup(void)
 {
-    // Set each data line individually
-    int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
-    
-    for (int i = 0; i < 8; i++) {
-        int bit_val = (value >> i) & 1;
-        set_line(d_req[i], data_gpios[i], bit_val);
+    if (gpio_base && gpio_base != MAP_FAILED) {
+        munmap((void*)gpio_base, GPIO_MAP_SIZE);
+        gpio_base = NULL;
     }
+}
+
+static inline void set_line(uint8_t pin, int val)
+{
+    if (val) GPIO_SET = (1 << pin);
+    else     GPIO_CLR = (1 << pin);
+}
+
+static inline void set_data_bus(uint8_t value)
+{
+    GPIO_CLR = DATA_PIN_MASK;          // clear all data pins
+    GPIO_SET = data_lut[value];        // set the required ones high
+}
+
+// Burst write multiple data bytes with CS low throughout
+// Assume RS is already set to data mode before calling this function
+void burst_write_bytes(const uint8_t *data, size_t len)
+{
+    set_line(LCD_RS, 1);
+    set_line(LCD_CS, 0);
+
+    for (size_t i = 0; i < len; i++) {
+        GPIO_CLR = DATA_PIN_MASK;
+        GPIO_SET = data_lut[data[i]];
+        GPIO_CLR = (1 << LCD_WR);     // WR low
+        GPIO_SET = (1 << LCD_WR);     // WR high
+    }
+
+    set_line(LCD_CS, 1);
+}
+
+// Flush full backbuffer to display (converts to BGR666 bytes)
+void flush_backbuffer(void) {
+    size_t bytes = TFT_WIDTH * TFT_HEIGHT * 3;
+    uint8_t *buf = malloc(bytes);
+    if (!buf) {
+        fprintf(stderr, "Malloc failed\n");
+        exit(1);
+    }
+    
+    for (int i = 0; i < TFT_WIDTH * TFT_HEIGHT; i++) {
+        uint16_t color = backbuffer[i];
+        uint8_t b = ((color & 0x1F) << 3);
+        uint8_t g = (((color >> 5) & 0x3F) << 2);
+        uint8_t r = (((color >> 11) & 0x1F) << 3);
+        buf[i * 3 + 0] = b;
+        buf[i * 3 + 1] = g;
+        buf[i * 3 + 2] = r;
+    }
+    
+    set_window(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
+    burst_write_bytes(buf, bytes);
+    free(buf);
 }
 
 // Write one 8-bit command
-static void write_cmd(uint8_t cmd)
+void write_cmd(uint8_t cmd)
 {
-    set_line(rs_req, LCD_RS, 0);  // RS/DC = 0 for command
-    set_line(cs_req, LCD_CS, 0);  // CS low
+    set_line(LCD_RS, 0);  // RS/DC = 0 for command
+    set_line(LCD_CS, 0);  // CS low
 
     set_data_bus(cmd);
 
-    set_line(wr_req, LCD_WR, 0);  // WR pulse
-    set_line(wr_req, LCD_WR, 1);
-    set_line(cs_req, LCD_CS, 1);  // CS high
-}
-
-static void delay(uint32_t ms){
-    usleep(ms * 1000);
+    set_line(LCD_WR, 0);  // WR pulse
+    set_line(LCD_WR, 1);
+    set_line(LCD_CS, 1);  // CS high
 }
 
 // Write one 8-bit data value
-static void write_data(uint8_t data)
+void write_data(uint8_t data)
 {
-    set_line(rs_req, LCD_RS, 1);  // RS/DC = 1 for data
-    set_line(cs_req, LCD_CS, 0);  // CS low
+    set_line(LCD_RS, 1);  // RS/DC = 1 for data
+    set_line(LCD_CS, 0);  // CS low
 
     set_data_bus(data);
 
-    set_line(wr_req, LCD_WR, 0);
-    set_line(wr_req, LCD_WR, 1);
-    set_line(cs_req, LCD_CS, 1);  // CS high
+    set_line(LCD_WR, 0);
+    set_line(LCD_WR, 1);
+    set_line(LCD_CS, 1);  // CS high
 }
 
 // 18-bit color mode (BGR666) - sends 3 bytes per pixel
-static void write_data16(uint16_t color)
+void write_data16(uint16_t color)
 {
     // Extract RGB565 channels
     uint8_t r = ((color >> 11) & 0x1F);  // 5-bit red
@@ -135,29 +162,18 @@ static void write_data16(uint16_t color)
 }
 
 // Add a separate function for coordinates
-static void write_coord16(uint16_t value)
+void write_coord16(uint16_t value)
 {
     write_data((value >> 8) & 0xFF);   // High byte
     write_data(value & 0xFF);           // Low byte
 }
 
-static void ili9481_reset(void)
-{
-    // VCI power stable
-    usleep(10000);  // Wait 10ms after power on
-    
-    set_line(rst_req, LCD_RST, 1);
-    usleep(1000);   // RESX high for 1ms
-    
-    set_line(rst_req, LCD_RST, 0);
-    usleep(10000);  // RESX low for at least 10μs 
-    
-    set_line(rst_req, LCD_RST, 1);
-    usleep(120000); // Wait 120ms before sending commands 
+void delay(uint32_t ms){
+    usleep(ms * 1000);
 }
 
 // Set full window (0..319, 0..479)
-static void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
     write_cmd(0x2A);             // Column address set
     write_coord16(x0);
@@ -170,45 +186,15 @@ static void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     write_cmd(0x2C);             // Memory write
 }
 
-static void fill_screen(uint16_t color)
-{
-    const uint16_t width  = 320;
-    const uint16_t height = 480;
-    uint32_t pixels = (uint32_t)width * (uint32_t)height;
-
-    set_window(0, 0, width - 1, height - 1);
-    
-    // Pre-calculate color bytes
-    uint8_t r = ((color >> 11) & 0x1F);
-    uint8_t g = ((color >> 5) & 0x3F);
-    uint8_t b = (color & 0x1F);
-    uint8_t b_byte = b << 3;
-    uint8_t g_byte = g << 2;
-    uint8_t r_byte = r << 3;
-
-    // Keep CS low for entire operation
-    set_line(cs_req, LCD_CS, 0);
-    set_line(rs_req, LCD_RS, 1);  // Data mode
-    
-    for (uint32_t i = 0; i < pixels; i++) {
-        set_data_bus(b_byte);
-        set_line(wr_req, LCD_WR, 0);
-        set_line(wr_req, LCD_WR, 1);
-        
-        set_data_bus(g_byte);
-        set_line(wr_req, LCD_WR, 0);
-        set_line(wr_req, LCD_WR, 1);
-        
-        set_data_bus(r_byte);
-        set_line(wr_req, LCD_WR, 0);
-        set_line(wr_req, LCD_WR, 1);
+void fill_screen(uint16_t color) {
+    for (int i = 0; i < TFT_WIDTH * TFT_HEIGHT; i++) {
+        backbuffer[i] = color;
     }
-    
-    set_line(cs_req, LCD_CS, 1);
+    flush_backbuffer();
 }
 
- // Function to reverse bits
-static uint8_t reverse_bits(uint8_t b) {
+// Function to reverse bits
+uint8_t reverse_bits(uint8_t b) {
     uint8_t r = 0;
     for (int i = 0; i < 8; i++) {
         r = (r << 1) | ((b >> i) & 1);
@@ -216,418 +202,29 @@ static uint8_t reverse_bits(uint8_t b) {
     return r;
 }
 
-static void test_data_bus_pattern(void)
+void ili9481_reset(void)
 {
-    printf("Testing data bus pattern...\n");
-    printf("Connect logic analyzer or LED bar to D0-D7\n");
-    printf("You should see a walking bit pattern:\n");
+    // VCI power stable
+    usleep(10000);  // Wait 10ms after power on
     
-    // turn all LEDs on for a second (verify wiring)
-    set_data_bus(0xFF);
-    sleep(1);
-    set_data_bus(0x00);
-
-    // Walking 1s pattern (Check Pattern)
-    for (int i = 0; i < 8; i++) {
-        uint8_t pattern = (1 << i);
-        printf("Setting data bus to 0x%02X (bit %d high)\n", pattern, i);
-        set_data_bus(pattern);
-        sleep(1);
-    }
+    set_line(LCD_RST, 1);
+    usleep(1000);   // RESX high for 1ms
+    
+    set_line(LCD_RST, 0);
+    usleep(10000);  // RESX low for at least 10μs 
+    
+    set_line(LCD_RST, 1);
+    usleep(120000); // Wait 120ms before sending commands 
 }
 
-static void test_suite(void)
+void ili9481_start(void)
 {
-    printf("\n");
-    printf("================================================================\n");
-    printf("    ILI9481 COMPREHENSIVE DIAGNOSTIC TEST SUITE\n");
-    printf("================================================================\n");
-    printf("\n");
-
-    // Keep RD high always
-    set_line(rd_req, LCD_RD, 1);
-
-    // ====================================================================
-    // TEST 1: Data Bus Bit Pattern Test
-    // ====================================================================
-    test_data_bus_pattern();
-
-    // ====================================================================
-    // TEST 2: Hardware Reset
-    // ====================================================================
-    printf("TEST 2: HARDWARE RESET\n");
-    printf("----------------------\n");
-    printf("Performing hardware reset sequence...\n");
-    
-    set_line(rst_req, LCD_RST, 1);
-    printf("  RST = HIGH\n");
-    usleep(10000);
-    
-    set_line(rst_req, LCD_RST, 0);
-    printf("  RST = LOW (50ms)\n");
-    usleep(50000);
-    
-    set_line(rst_req, LCD_RST, 1);
-    printf("  RST = HIGH (waiting 200ms)\n");
-    usleep(200000);
-    
-    printf("Reset complete.\n");
-    printf("Press Enter to continue...");
-    getchar();
-    printf("\n");
-
-    // ====================================================================
-    // TEST 3: Basic Command Test (Normal WR Polarity)
-    // ====================================================================
-    printf("TEST 3: BASIC COMMAND TEST (Normal WR Polarity)\n");
-    printf("------------------------------------------------\n");
-    printf("Testing with WR idle HIGH, pulse LOW (standard)\n\n");
-    
-    printf("Sending Software Reset (0x01)...\n");
-    write_cmd(0x01);
-    usleep(200000);
-    
-    printf("Sending Sleep Out (0x11)...\n");
-    write_cmd(0x11);
-    usleep(120000);
-    
-    printf("Sending Display ON (0x29)...\n");
-    write_cmd(0x29);
-    usleep(100000);
-    
-    printf("\nWatch the display! Testing inversion toggle (5 cycles)...\n");
-    printf("You should see flashing or color changes if working.\n\n");
-    
-    for (int i = 0; i < 5; i++) {
-        printf("  Cycle %d: Inversion ON (0x21)...\n", i+1);
-        write_cmd(0x21);
-        sleep(1);
-        
-        printf("  Cycle %d: Inversion OFF (0x20)...\n", i+1);
-        write_cmd(0x20);
-        sleep(1);
-    }
-    
-    printf("\nDid you see ANY change on the display? (y/n): ");
-    char response;
-    scanf(" %c", &response);
-    getchar(); // consume newline
-    
-    if (response == 'y' || response == 'Y') {
-        printf("\n✓ GREAT! Communication is working!\n");
-        printf("  Moving to full initialization...\n\n");
-        goto full_init;
-    } else {
-        printf("\n✗ No change detected. Trying alternative tests...\n\n");
-    }
-
-    // ====================================================================
-    // TEST 4: Inverted RS/DC Polarity Test
-    // ====================================================================
-    printf("TEST 4: INVERTED RS/DC POLARITY TEST\n");
-    printf("-------------------------------------\n");
-    printf("Some shields have inverted RS/DC logic.\n");
-    printf("Testing RS=1 for command (inverted)...\n\n");
-    
-    // Hardware reset again
-    set_line(rst_req, LCD_RST, 0);
-    usleep(50000);
-    set_line(rst_req, LCD_RST, 1);
-    usleep(200000);
-    
-    // Send commands with INVERTED RS
-    printf("Sending commands with RS inverted...\n");
-    
-    // Sleep Out with inverted RS
-    set_line(rs_req, LCD_RS, 1);  // INVERTED (normally would be 0)
-    set_line(cs_req, LCD_CS, 0);
-    usleep(10);
-    set_data_bus(0x11);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 0);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 1);
-    usleep(10);
-    set_line(cs_req, LCD_CS, 1);
-    usleep(120000);
-    
-    // Display ON with inverted RS
-    set_line(rs_req, LCD_RS, 1);  // INVERTED
-    set_line(cs_req, LCD_CS, 0);
-    usleep(10);
-    set_data_bus(0x29);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 0);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 1);
-    usleep(10);
-    set_line(cs_req, LCD_CS, 1);
-    usleep(100000);
-    
-    printf("\nDid you see ANY change now? (y/n): ");
-    scanf(" %c", &response);
-    getchar();
-    
-    if (response == 'y' || response == 'Y') {
-        printf("\n✓ RS/DC is INVERTED on your shield!\n");
-        printf("  You need to flip RS logic in your code.\n");
-        printf("  Change: RS=0 for cmd → RS=1 for cmd\n");
-        printf("          RS=1 for data → RS=0 for data\n\n");
-        goto cleanup;
-    } else {
-        printf("\n✗ Still no change. Trying inverted WR...\n\n");
-    }
-
-    // ====================================================================
-    // TEST 5: Inverted WR Polarity Test
-    // ====================================================================
-    printf("TEST 5: INVERTED WR POLARITY TEST\n");
-    printf("----------------------------------\n");
-    printf("Some shields use WR idle LOW, pulse HIGH.\n");
-    printf("Testing inverted WR...\n\n");
-    
-    // Hardware reset again
-    set_line(rst_req, LCD_RST, 0);
-    usleep(50000);
-    set_line(rst_req, LCD_RST, 1);
-    usleep(200000);
-    
-    // Sleep Out with inverted WR
-    printf("Sending Sleep Out (0x11) with WR inverted...\n");
-    set_line(rs_req, LCD_RS, 0);
-    set_line(cs_req, LCD_CS, 0);
-    set_line(wr_req, LCD_WR, 0);  // WR idle LOW (inverted)
-    usleep(10);
-    set_data_bus(0x11);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 1);  // WR pulse HIGH (inverted)
-    usleep(10);
-    set_line(wr_req, LCD_WR, 0);  // Back to idle LOW
-    usleep(10);
-    set_line(cs_req, LCD_CS, 1);
-    usleep(120000);
-    
-    // Display ON with inverted WR
-    printf("Sending Display ON (0x29) with WR inverted...\n");
-    set_line(rs_req, LCD_RS, 0);
-    set_line(cs_req, LCD_CS, 0);
-    set_line(wr_req, LCD_WR, 0);  // WR idle LOW
-    usleep(10);
-    set_data_bus(0x29);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 1);  // WR pulse HIGH
-    usleep(10);
-    set_line(wr_req, LCD_WR, 0);  // Back to idle LOW
-    usleep(10);
-    set_line(cs_req, LCD_CS, 1);
-    usleep(100000);
-    
-    printf("\nDid you see ANY change now? (y/n): ");
-    scanf(" %c", &response);
-    getchar();
-    
-    if (response == 'y' || response == 'Y') {
-        printf("\n✓ WR is INVERTED on your shield!\n");
-        printf("  You need to flip WR logic in your code.\n");
-        printf("  Change: WR idle=1, pulse to 0 → WR idle=0, pulse to 1\n\n");
-        goto cleanup;
-    } else {
-        printf("\n✗ Still no change.\n\n");
-    }
-
-    // ====================================================================
-    // TEST 6: Both RS and WR Inverted
-    // ====================================================================
-    printf("TEST 6: BOTH RS AND WR INVERTED TEST\n");
-    printf("-------------------------------------\n");
-    printf("Testing with both RS and WR inverted...\n\n");
-    
-    // Hardware reset again
-    set_line(rst_req, LCD_RST, 0);
-    usleep(50000);
-    set_line(rst_req, LCD_RST, 1);
-    usleep(200000);
-    
-    // Sleep Out with BOTH inverted
-    set_line(rs_req, LCD_RS, 1);  // RS INVERTED
-    set_line(cs_req, LCD_CS, 0);
-    set_line(wr_req, LCD_WR, 0);  // WR idle LOW
-    usleep(10);
-    set_data_bus(0x11);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 1);  // WR pulse HIGH
-    usleep(10);
-    set_line(wr_req, LCD_WR, 0);
-    usleep(10);
-    set_line(cs_req, LCD_CS, 1);
-    usleep(120000);
-    
-    // Display ON with BOTH inverted
-    set_line(rs_req, LCD_RS, 1);  // RS INVERTED
-    set_line(cs_req, LCD_CS, 0);
-    set_line(wr_req, LCD_WR, 0);  // WR idle LOW
-    usleep(10);
-    set_data_bus(0x29);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 1);  // WR pulse HIGH
-    usleep(10);
-    set_line(wr_req, LCD_WR, 0);
-    usleep(10);
-    set_line(cs_req, LCD_CS, 1);
-    usleep(100000);
-    
-    printf("\nDid you see ANY change now? (y/n): ");
-    scanf(" %c", &response);
-    getchar();
-    
-    if (response == 'y' || response == 'Y') {
-        printf("\n✓ BOTH RS and WR are INVERTED!\n\n");
-        goto cleanup;
-    }
-
-    // ====================================================================
-    // TEST 7: Data Bus Bit Order Check
-    // ====================================================================
-    printf("\n");
-    printf("TEST 7: DATA BUS BIT ORDER VERIFICATION\n");
-    printf("----------------------------------------\n");
-    printf("Your data bus might be wired in reverse or scrambled.\n");
-    printf("Common configurations:\n");
-    printf("  Normal:   D0=LSB, D7=MSB\n");
-    printf("  Reversed: D0=MSB, D7=LSB\n\n");
-    
-    printf("Try these commands with REVERSED bit order:\n\n");
-    
-    // Hardware reset
-    set_line(rst_req, LCD_RST, 0);
-    usleep(50000);
-    set_line(rst_req, LCD_RST, 1);
-    usleep(200000);
-    
-    // Sleep Out (0x11) with reversed bits
-    uint8_t cmd_reversed = reverse_bits(0x11);
-    printf("Sending 0x11 as 0x%02X (reversed bits)...\n", cmd_reversed);
-    set_line(rs_req, LCD_RS, 0);
-    set_line(cs_req, LCD_CS, 0);
-    usleep(10);
-    set_data_bus(cmd_reversed);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 0);
-    usleep(10);
-    set_line(wr_req, LCD_WR, 1);
-    usleep(10);
-    set_line(cs_req, LCD_CS, 1);
-    usleep(120000);
-    
-    printf("\nDid you see ANY change? (y/n): ");
-    scanf(" %c", &response);
-    getchar();
-    
-    if (response == 'y' || response == 'Y') {
-        printf("\n✓ Your data bus is BIT-REVERSED!\n");
-        printf("  You need to reverse the bit order in set_data_bus()\n\n");
-        goto cleanup;
-    }
-
-    // ====================================================================
-    // If we got here, nothing worked
-    // ====================================================================
-    printf("\n");
-    printf("================================================================\n");
-    printf("  DIAGNOSTIC SUMMARY: NO COMMUNICATION DETECTED\n");
-    printf("================================================================\n");
-    printf("\n");
-    printf("Possible issues:\n");
-    printf("  1. Wrong GPIO pin assignments (D0-D7, RS, WR, CS, RST)\n");
-    printf("  2. Loose or incorrect wiring\n");
-    printf("  3. Display needs different power sequence\n");
-    printf("  4. Shield is in SPI mode, not parallel mode\n");
-    printf("  5. Data bus is scrambled (not just reversed)\n");
-    printf("\n");
-    printf("Next steps:\n");
-    printf("  - Verify pin mapping matches your shield\n");
-    printf("  - Check continuity with multimeter\n");
-    printf("  - Look for IM0-IM3 configuration pins on shield\n");
-    printf("  - Compare with working Arduino wiring\n");
-    printf("\n");
-    goto cleanup;
-
-    // ====================================================================
-    // Full Initialization (if basic test worked)
-    // ====================================================================
-full_init:
-    printf("\n");
-    printf("================================================================\n");
-    printf("  FULL INITIALIZATION SEQUENCE\n");
-    printf("================================================================\n");
-    printf("\n");
-    
-    printf("Running complete ILI9481 initialization...\n");
-    ili9481_init();
-    
-    printf("Filling screen with RED...\n");
-    fill_screen(0xF800);  // Red
-    sleep(2);
-    
-    printf("Filling screen with GREEN...\n");
-    fill_screen(0x07E0);  // Green
-    sleep(2);
-    
-    printf("Filling screen with BLUE...\n");
-    fill_screen(0x001F);  // Blue
-    sleep(2);
-    
-    printf("Filling screen with WHITE...\n");
-    fill_screen(0xFFFF);  // White
-    sleep(2);
-    
-    printf("Filling screen with BLACK...\n");
-    fill_screen(0x0000);  // Black
-    sleep(2);
-    
-    printf("\n");
-    printf("================================================================\n");
-    printf("  SUCCESS! Display is working!\n");
-    printf("================================================================\n");
-    printf("\n");
-
-    // ====================================================================
-    // Cleanup
-    // ====================================================================
-cleanup:
-    printf("\nCleaning up GPIO...\n");
-    gpiod_line_request_release(rd_req);
-    gpiod_line_request_release(wr_req);
-    gpiod_line_request_release(rs_req);
-    gpiod_line_request_release(cs_req);
-    gpiod_line_request_release(rst_req);
-    for (int i = 0; i < 8; i++) {
-        gpiod_line_request_release(d_req[i]);
-    }
-    gpiod_chip_close(chip);
-    
-    printf("Done.\n\n");
-}
-
-static void ili9481_start(void){
-    chip = gpiod_chip_open(GPIOCHIP);
-    if (!chip) {
-        perror("gpiod_chip_open");
-    }
-
-    // Request control lines
-    rd_req  = req_out_line(LCD_RD,  "lcd-rd", 1);
-    wr_req  = req_out_line(LCD_WR,  "lcd-wr", 1);
-    rs_req  = req_out_line(LCD_RS,  "lcd-rs", 1);
-    cs_req  = req_out_line(LCD_CS,  "lcd-cs", 1);
-    rst_req = req_out_line(LCD_RST, "lcd-rst", 1);
-
-    // Request data lines
-    int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
-    for (int i = 0; i < 8; i++) {
-        d_req[i] = req_out_line(data_gpios[i], "lcd-d", 0);
-    }
-
+    gpio_mmap_init();       // replaces all the gpiod chip/line setup
     ili9481_reset();
     ili9481_init();
+}
+
+void ili9481_stop(void)
+{
+    gpio_mmap_cleanup();
 }

@@ -1,12 +1,13 @@
-Trynna make ILI9481 parallel TFT work with Rpi Zero 2W
+A lightweight C Library to control a TFT Display via a Raspberry Pi
 
-- The display is just a generic arduino shield
+- The display is a generic arduino uno TFT shield
 - ILI9481 Datasheet (https://www.displayfuture.com/Display/datasheet/controller/ILI9481.pdf)
 
 ## To Run
 
+cd into the ili9481-rpi directory and run `make` and then to run the main.c program
+
 ```bash
-gcc main.c -o main -lgpiod
 sudo ./main
 ```
 
@@ -24,18 +25,15 @@ full compile
 arm-linux-gnueabihf-gcc \
   -Wall -Wextra -std=c11 \
   ili9481_parallel.c \
-  -lgpiod \
-  -o app
+  -o ili9481_parallel.c
 ```
 
-compile without checking libs (not reccomended)
+compile without checking libs (not recommended)
 
 ```bash
 arm-linux-gnueabihf-gcc \
-  -DCOMPILE_CHECK \
   -fsyntax-only \
   -Wall -Wextra -Werror -pedantic \
-  -I./mocks \
   ili9481_parallel.c
 ```
 
@@ -45,9 +43,7 @@ Cd into the correct directory and then:
 
 ```bash
 arm-linux-gnueabihf-gcc \
-  -DCOMPILE_CHECK \
   -fsyntax-only \
   -Wall -Wextra -Werror -pedantic \
-  -I./mocks \
   main.c
 ```
