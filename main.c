@@ -2,7 +2,6 @@
 
 void demo_rainbow_bars(void)
 {
-    printf("Drawing rainbow bars...\n");
     uint16_t colors[] = {
         0xF800,  // Red
         0xFD20,  // Orange
@@ -34,10 +33,11 @@ int main(void){
     while (1) {
         demo_rainbow_bars();
         sleep(2);
-        fill_screen(RED);
-        sleep(5);
-        fill_screen(GREEN);
-        sleep(5);
+        fill_screen(WHITE);
+        sleep(2);
+        fill_rect(50, 50, 220, 380, GREEN);
+        draw_line(0, 0, 319, 479, BLUE);
+        sleep(2);
     }
 
     ili9481_stop();

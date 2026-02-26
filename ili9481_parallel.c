@@ -193,6 +193,31 @@ void fill_screen(uint16_t color) {
     flush_backbuffer();
 }
 
+void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
+    for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
+            backbuffer[(y + j) * TFT_WIDTH + (x + i)] = color;
+        }
+    }
+    flush_backbuffer();
+}
+
+void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color) {
+    // Bresenham's line algorithm
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1; 
+    int err = dx + dy, e2;
+
+    while (1) {
+        backbuffer[y0 * TFT_WIDTH + x0] = color;
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+    flush_backbuffer();
+}
+
 // Function to reverse bits
 uint8_t reverse_bits(uint8_t b) {
     uint8_t r = 0;
