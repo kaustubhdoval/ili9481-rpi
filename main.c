@@ -1,11 +1,14 @@
 #include "ili9481_parallel.h"
 
 void demo_rainbow_bars(void) {
+     uint16_t colors[] = {
+        0xF800, 0xFD20, 0xFFE0, 0x07E0, 0x001F, 0x781F, 0xF81F
+    };
     int bar_height = TFT_HEIGHT / 7;
     for (int i = 0; i < 7; i++) {
         int y0 = i * bar_height;
         int h  = (i == 6) ? (TFT_HEIGHT - y0) : bar_height;
-        fill_rect_buf(0, y0, TFT_WIDTH, h, colors[i]);
+        fill_rect(0, y0, TFT_WIDTH, h, colors[i]);
     }
     flush_backbuffer();  // single flush after all drawing is done
 }
