@@ -1,6 +1,11 @@
 // ili9481_parallel.c
 #include "ili9481_parallel.h"
 
+// nop count a variable you can change at runtime
+#define WR_SETUP_NOPS  4    
+#define WR_HOLD_NOPS   4    
+#define WR_CYCLE_NOPS  4 
+
 unsigned int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
 
 volatile uint8_t *gpio_base = NULL;
@@ -88,19 +93,16 @@ void burst_write_bytes(const uint8_t *data, size_t len)
     set_line(LCD_CS, 0);
 
     for (size_t i = 0; i < len; i++) {
-        GPIO_CLR = DATA_PIN_MASK;
-        GPIO_SET = data_lut[data[i]];
+    GPIO_CLR = DATA_PIN_MASK;
+    GPIO_SET = data_lut[data[i]];
 
-        __asm__ volatile("nop");
-        __asm__ volatile("nop");  
-
-        GPIO_CLR = (1 << LCD_WR);     // WR low
-
-        __asm__ volatile("nop");      // give display time to latch
-        __asm__ volatile("nop");
-
-        GPIO_SET = (1 << LCD_WR);     // WR high
-    }
+    for(int n = 0; n < WR_SETUP_NOPS; n++) __asm__ volatile("nop");
+    GPIO_CLR = (1 << LCD_WR);
+    for(int n = 0; n < WR_HOLD_NOPS; n++) __asm__ volatile("nop");
+    
+    GPIO_SET = (1 << LCD_WR);
+    for(int n = 0; n < WR_CYCLE_NOPS; n++) __asm__ volatile("nop");
+}
 
     set_line(LCD_CS, 1);
 }
@@ -127,8 +129,7 @@ void flush_backbuffer(void) {
 void write_cmd(uint8_t cmd)
 {
     set_line(LCD_RS, 0);  // RS/DC = 0 for command
-    __asm__ volatile("nop");
-    __asm__ volatile("nop");  
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
     set_line(LCD_CS, 0);  // CS low
 
     set_data_bus(cmd);
@@ -142,6 +143,7 @@ void write_cmd(uint8_t cmd)
 void write_data(uint8_t data)
 {
     set_line(LCD_RS, 1);  // RS/DC = 1 for data
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
     set_line(LCD_CS, 0);  // CS low
 
     set_data_bus(data);
