@@ -5,11 +5,9 @@ Trynna make ILI9481 parallel TFT work with Rpi Zero 2W
 
 ## To Run
 
-cd into the ili9481-rpi directory and run `make`
-**OR**
+cd into the ili9481-rpi directory and run `make` and then to run the main.c program
 
 ```bash
-gcc main.c ili9481_parallel.c -o main -lgpiod
 sudo ./main
 ```
 
@@ -31,7 +29,7 @@ arm-linux-gnueabihf-gcc \
   -o app
 ```
 
-compile without checking libs (not reccomended)
+compile without checking libs (not recommended)
 
 ```bash
 arm-linux-gnueabihf-gcc \

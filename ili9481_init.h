@@ -23,7 +23,7 @@ void delay(uint32_t ms);
 static inline void ili9481_init(void)
 {
 #ifdef ILI9481_INIT_CUSTOM
-    write_cmd(0x11);
+    write_cmd(TFT_SLPOUT);
     delay(20);
 
     write_cmd(0xD0);
@@ -71,13 +71,11 @@ static inline void ili9481_init(void)
     write_data(0x66);   // 18-bit colour interface
     //write_data(0x55); // 16-bit colour interface
     
-    //write_cmd(0x22);
     write_data(0x00);
     write_data(0x00);
     write_data(0x01);
     write_data(0x3F);
 
-    //write_cmd(0x2B);
     write_data(0x00);
     write_data(0x00);
     write_data(0x01);
@@ -86,7 +84,7 @@ static inline void ili9481_init(void)
     delay(120);
     
     write_cmd(0x21); // Inversion 
-    write_cmd(0x29);
+    write_cmd(TFT_DISPON);
 
 #elif ILI9481_INIT_1
     // Configure ILI9481 display
