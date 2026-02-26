@@ -2,6 +2,10 @@
 #include "ili9481_parallel.h"
 
 unsigned int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
+
+volatile uint8_t *gpio_base = NULL;
+uint32_t data_lut[256];
+
 uint16_t backbuffer[TFT_WIDTH * TFT_HEIGHT];
 
 static void gpio_set_output(uint8_t pin)

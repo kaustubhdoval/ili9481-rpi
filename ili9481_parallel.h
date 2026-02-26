@@ -11,7 +11,6 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#define GPIOCHIP "/dev/gpiochip0"
 #define GPIO_BASE        0x3F200000
 #define GPIO_MAP_SIZE    4096
 
@@ -29,12 +28,8 @@ extern uint32_t data_lut[256];
 extern uint16_t backbuffer[TFT_WIDTH * TFT_HEIGHT];
 
 // Public Functions
-static void gpio_set_output(uint8_t pin);
 void gpio_mmap_init(void);
 void gpio_mmap_cleanup(void);
-
-static inline void set_line(uint8_t pin, int val);
-static inline void set_data_bus(uint8_t value);
 
 void burst_write_bytes(const uint8_t *data, size_t len);
 void flush_backbuffer(void);
