@@ -240,7 +240,7 @@ void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
     expand_dirty(x, y, w, h);
     for (int j = 0; j < h; j++) {
         for (int i = 0; i < w; i++) {
-            set_pixel(x + j, y + i, color);
+            set_pixel(x + i, y + j, color);
         }
     }
 }
