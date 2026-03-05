@@ -1,5 +1,11 @@
 // ili9481_parallel.c
 #include "ili9481_parallel.h"
+#include "cp437font8x8.h"  // 8x8 font data
+
+// nop count a variable you can change at runtime
+#define WR_SETUP_NOPS  4    
+#define WR_HOLD_NOPS   4    
+#define WR_CYCLE_NOPS  4 
 
 unsigned int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
 
@@ -7,6 +13,7 @@ volatile uint8_t *gpio_base = NULL;
 uint32_t data_lut[256];
 
 uint16_t backbuffer[TFT_WIDTH * TFT_HEIGHT];
+static uint16_t dirty_x0, dirty_y0, dirty_x1, dirty_y1; // dirty region tracking
 
 static void gpio_set_output(uint8_t pin)
 {
@@ -90,46 +97,59 @@ void burst_write_bytes(const uint8_t *data, size_t len)
     for (size_t i = 0; i < len; i++) {
         GPIO_CLR = DATA_PIN_MASK;
         GPIO_SET = data_lut[data[i]];
-        GPIO_CLR = (1 << LCD_WR);     // WR low
-        GPIO_SET = (1 << LCD_WR);     // WR high
-    }
+
+        for(int n = 0; n < WR_SETUP_NOPS; n++) __asm__ volatile("nop");
+        GPIO_CLR = (1 << LCD_WR);
+        for(int n = 0; n < WR_HOLD_NOPS; n++) __asm__ volatile("nop");
+        
+        GPIO_SET = (1 << LCD_WR);
+        for(int n = 0; n < WR_CYCLE_NOPS; n++) __asm__ volatile("nop");
+}
 
     set_line(LCD_CS, 1);
 }
 
 // Flush full backbuffer to display (converts to BGR666 bytes)
 void flush_backbuffer(void) {
-    size_t bytes = TFT_WIDTH * TFT_HEIGHT * 3;
-    uint8_t *buf = malloc(bytes);
-    if (!buf) {
-        fprintf(stderr, "Malloc failed\n");
-        exit(1);
-    }
+    // if nothing dirty -> return
+    if (dirty_x0 >= dirty_x1 || dirty_y0 >= dirty_y1) return;
     
-    for (int i = 0; i < TFT_WIDTH * TFT_HEIGHT; i++) {
-        uint16_t color = backbuffer[i];
-        uint8_t b = ((color & 0x1F) << 3);
-        uint8_t g = (((color >> 5) & 0x3F) << 2);
-        uint8_t r = (((color >> 11) & 0x1F) << 3);
-        buf[i * 3 + 0] = b;
-        buf[i * 3 + 1] = g;
-        buf[i * 3 + 2] = r;
-    }
+    static uint8_t buf[TFT_WIDTH * TFT_HEIGHT * 3];  // 3 bytes per pixel for BGR666
     
-    set_window(0, 0, TFT_WIDTH - 1, TFT_HEIGHT - 1);
-    burst_write_bytes(buf, bytes);
-    free(buf);
+    uint16_t w = dirty_x1 - dirty_x0;
+    uint16_t h = dirty_y1 - dirty_y0;
+    int idx = 0;
+
+    for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
+            uint16_t color = backbuffer[(dirty_y0 + j) * TFT_WIDTH + (dirty_x0 + i)];
+            uint8_t b = (color & 0x1F) << 3;
+            uint8_t g = ((color >> 5) & 0x3F) << 2;
+            uint8_t r = ((color >> 11) & 0x1F) << 3;
+            buf[idx++] = b;
+            buf[idx++] = g;
+            buf[idx++] = r;
+        }
+    }
+
+    set_window(dirty_x0, dirty_y0, dirty_x1 - 1, dirty_y1 - 1);
+    burst_write_bytes(buf, (size_t)w * h * 3);
+    reset_dirty();
 }
 
 // Write one 8-bit command
 void write_cmd(uint8_t cmd)
 {
     set_line(LCD_RS, 0);  // RS/DC = 0 for command
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
     set_line(LCD_CS, 0);  // CS low
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
 
     set_data_bus(cmd);
 
+    for(int n = 0; n < WR_SETUP_NOPS; n++) __asm__ volatile("nop");
     set_line(LCD_WR, 0);  // WR pulse
+    __asm__ volatile("nop"); __asm__ volatile("nop");      
     set_line(LCD_WR, 1);
     set_line(LCD_CS, 1);  // CS high
 }
@@ -138,11 +158,15 @@ void write_cmd(uint8_t cmd)
 void write_data(uint8_t data)
 {
     set_line(LCD_RS, 1);  // RS/DC = 1 for data
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
     set_line(LCD_CS, 0);  // CS low
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
 
     set_data_bus(data);
 
+    for(int n = 0; n < WR_SETUP_NOPS; n++) __asm__ volatile("nop");
     set_line(LCD_WR, 0);
+    __asm__ volatile("nop"); __asm__ volatile("nop");  
     set_line(LCD_WR, 1);
     set_line(LCD_CS, 1);  // CS high
 }
@@ -172,6 +196,20 @@ void delay(uint32_t ms){
     usleep(ms * 1000);
 }
 
+void reset_dirty(void) {
+    dirty_x0 = TFT_WIDTH;
+    dirty_y0 = TFT_HEIGHT;
+    dirty_x1 = 0;
+    dirty_y1 = 0;
+}
+
+void expand_dirty(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    if (x < dirty_x0) dirty_x0 = x;
+    if (y < dirty_y0) dirty_y0 = y;
+    if ((x + w) > dirty_x1) dirty_x1 = x + w;
+    if ((y + h) > dirty_y1) dirty_y1 = y + h;
+}
+
 // Set full window (0..319, 0..479)
 void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
@@ -186,11 +224,93 @@ void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     write_cmd(0x2C);             // Memory write
 }
 
+static inline void set_pixel(uint16_t x, uint16_t y, uint16_t color) {
+    if (x >= TFT_WIDTH || y >= TFT_HEIGHT) return;
+    backbuffer[y * TFT_WIDTH + x] = color;
+}
+
 void fill_screen(uint16_t color) {
+    expand_dirty(0, 0, TFT_WIDTH, TFT_HEIGHT); 
     for (int i = 0; i < TFT_WIDTH * TFT_HEIGHT; i++) {
         backbuffer[i] = color;
     }
-    flush_backbuffer();
+}
+
+void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
+    expand_dirty(x, y, w, h);
+    for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
+            set_pixel(x + i, y + j, color);
+        }
+    }
+}
+
+void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color) {
+    // add dirty region
+    uint16_t bx = x0 < x1 ? x0 : x1;
+    uint16_t by = y0 < y1 ? y0 : y1;
+    uint16_t bw = (x0 < x1 ? x1 - x0 : x0 - x1) + 1;
+    uint16_t bh = (y0 < y1 ? y1 - y0 : y0 - y1) + 1;
+    expand_dirty(bx, by, bw, bh);
+    
+    // Bresenham's line algorithm
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1; 
+    int err = dx + dy, e2;
+
+    while (1) {
+        backbuffer[y0 * TFT_WIDTH + x0] = color;
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
+void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg)
+{
+    if ((unsigned char)c > FONT_LAST) c = '?';
+
+    const unsigned char *glyph = &cp437font8x8[6 + ((unsigned char)c * FONT_HEIGHT)];
+
+    expand_dirty(x, y, FONT_WIDTH, FONT_HEIGHT);
+
+    for (int row = 0; row < FONT_HEIGHT; row++) {
+        unsigned char bits = glyph[row];
+        for (int col = 0; col < FONT_WIDTH; col++) {
+            if (bits & (0x80 >> col)) {
+                set_pixel(x + row, y + col, fg);
+            }
+        }
+    }
+}
+
+void draw_string(uint16_t x, uint16_t y, const char *str, uint16_t fg)
+{
+    uint16_t cursor_x = x;
+
+    while (*str) {
+        // Handle newline
+        if (*str == '\n') {
+            cursor_x = x;
+            y += FONT_HEIGHT;
+            str++;
+            continue;
+        }
+
+        // Stop if we'd go off screen horizontally — wrap to next line
+        if (cursor_x + FONT_WIDTH > TFT_WIDTH) {
+            cursor_x = x;
+            y += FONT_HEIGHT;
+        }
+
+        // Stop if we'd go off screen vertically
+        if (y + FONT_HEIGHT > TFT_HEIGHT) break;
+
+        draw_char(cursor_x, y, *str, fg);
+        cursor_x += FONT_WIDTH;
+        str++;
+    }
 }
 
 // Function to reverse bits
@@ -219,9 +339,10 @@ void ili9481_reset(void)
 
 void ili9481_start(void)
 {
-    gpio_mmap_init();       // replaces all the gpiod chip/line setup
+    gpio_mmap_init();      
     ili9481_reset();
     ili9481_init();
+    reset_dirty();
 }
 
 void ili9481_stop(void)
