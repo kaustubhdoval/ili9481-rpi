@@ -224,6 +224,11 @@ void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     write_cmd(0x2C);             // Memory write
 }
 
+static inline void set_pixel(uint16_t x, uint16_t y, uint16_t color) {
+    if (x >= TFT_WIDTH || y >= TFT_HEIGHT) return;
+    backbuffer[y * TFT_WIDTH + x] = color;
+}
+
 void fill_screen(uint16_t color) {
     expand_dirty(0, 0, TFT_WIDTH, TFT_HEIGHT); 
     for (int i = 0; i < TFT_WIDTH * TFT_HEIGHT; i++) {
@@ -235,7 +240,7 @@ void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
     expand_dirty(x, y, w, h);
     for (int j = 0; j < h; j++) {
         for (int i = 0; i < w; i++) {
-            backbuffer[(y + j) * TFT_WIDTH + (x + i)] = color;
+            set_pixel(x + i, y + j, color);
         }
     }
 }
@@ -271,10 +276,10 @@ void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg)
     expand_dirty(x, y, FONT_WIDTH, FONT_HEIGHT);
 
     for (int row = 0; row < FONT_HEIGHT; row++) {
-        unsigned char bits = glyph[row];
+        unsigned char bits = glyph[row];    
         for (int col = 0; col < FONT_WIDTH; col++) {
-            if (bits & (1 << (7 - col))) {   
-                backbuffer[(y + row) * TFT_WIDTH + (x + col)] = fg;
+            if (bits & (1 << col)) {       
+            set_pixel(x + col, y + row, fg);
             }
         }
     }

@@ -1,5 +1,5 @@
-#define TFT_WIDTH 320
-#define TFT_HEIGHT 480
+#define TFT_WIDTH 480
+#define TFT_HEIGHT 320
 
 // Delay between some initialisation commands
 #define TFT_INIT_DELAY 0x02
@@ -32,7 +32,7 @@
 #define VIOLET  0xF81F   // Violet
 
 // Generic commands used by TFT_eSPI.cpp init sequences
-#define TFT_MADCTL 0x0
+#define TFT_MADCTL 0x28
 #define TFT_PARALLEL_8_BIT 1
 
 #define TFT_SLPOUT 0x11
