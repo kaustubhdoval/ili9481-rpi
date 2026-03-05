@@ -224,7 +224,7 @@ void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     write_cmd(0x2C);             // Memory write
 }
 
-static inline void set_pixel(uint16_t x, uint16_t y, uint16_t color) {
+inline void set_pixel(uint16_t x, uint16_t y, uint16_t color) {
     if (x >= TFT_WIDTH || y >= TFT_HEIGHT) return;
     backbuffer[y * TFT_WIDTH + x] = color;
 }
@@ -240,7 +240,7 @@ void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
     expand_dirty(x, y, w, h);
     for (int j = 0; j < h; j++) {
         for (int i = 0; i < w; i++) {
-            set_pixel(x + i, y + j, color);
+            set_pixel(x + j, y + i, color);
         }
     }
 }
@@ -279,7 +279,7 @@ void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg)
         unsigned char bits = glyph[row];
         for (int col = 0; col < FONT_WIDTH; col++) {
             if (bits & (0x80 >> col)) {
-                set_pixel(x + col, y + row, fg);
+                set_pixel(x + row, y + col, fg);
             }
         }
     }

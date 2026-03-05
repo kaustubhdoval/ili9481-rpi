@@ -24,12 +24,10 @@ int main(void){
     flush_backbuffer();
     sleep(2);
     
-    fill_rect(50, 50, 220, 380, GREEN);
+    fill_rect(50, 50, 380, 220, GREEN);
     flush_backbuffer();
-    
-    draw_string(100, 200, "Hello World!", VIOLET);
+    draw_string(60, 100, "Hello World!", VIOLET);
     flush_backbuffer();
-    sleep(2);
 
     ili9481_stop();
     return 0;

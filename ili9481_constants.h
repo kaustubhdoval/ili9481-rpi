@@ -31,8 +31,12 @@
 #define INDIGO  0x781F  // Indigo
 #define VIOLET  0xF81F   // Violet
 
+// MADCTL - Memory Data Access Control
+// MY MX MV ML RGB MH 0 0 
+// 1  0  1  0   1  0
+#define TFT_MADCTL 0b10101000    
+
 // Generic commands used by TFT_eSPI.cpp init sequences
-#define TFT_MADCTL 0x68
 #define TFT_PARALLEL_8_BIT 1
 
 #define TFT_SLPOUT 0x11
