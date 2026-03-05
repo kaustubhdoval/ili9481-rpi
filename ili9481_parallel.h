@@ -43,7 +43,6 @@ void delay(uint32_t ms);
 void reset_dirty(void);
 void expand_dirty(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
-inline void set_pixel(uint16_t x, uint16_t y, uint16_t color);
 void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
 void fill_screen(uint16_t color);
 void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);

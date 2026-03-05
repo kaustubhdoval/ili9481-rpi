@@ -224,7 +224,7 @@ void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     write_cmd(0x2C);             // Memory write
 }
 
-inline void set_pixel(uint16_t x, uint16_t y, uint16_t color) {
+static inline void set_pixel(uint16_t x, uint16_t y, uint16_t color) {
     if (x >= TFT_WIDTH || y >= TFT_HEIGHT) return;
     backbuffer[y * TFT_WIDTH + x] = color;
 }
