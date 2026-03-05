@@ -276,10 +276,10 @@ void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg)
     expand_dirty(x, y, FONT_WIDTH, FONT_HEIGHT);
 
     for (int row = 0; row < FONT_HEIGHT; row++) {
-        unsigned char bits = glyph[row];    
+        unsigned char bits = glyph[row];
         for (int col = 0; col < FONT_WIDTH; col++) {
-            if (bits & (1 << col)) {       
-            set_pixel(x + col, y + row, fg);
+            if (bits & (0x80 >> col)) {
+                set_pixel(x + col, y + row, fg);
             }
         }
     }

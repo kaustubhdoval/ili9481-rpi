@@ -32,7 +32,7 @@
 #define VIOLET  0xF81F   // Violet
 
 // Generic commands used by TFT_eSPI.cpp init sequences
-#define TFT_MADCTL 0x28
+#define TFT_MADCTL 0x68
 #define TFT_PARALLEL_8_BIT 1
 
 #define TFT_SLPOUT 0x11
