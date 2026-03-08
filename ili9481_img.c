@@ -1,8 +1,14 @@
 #include "ili9481_parallel.h"
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <jpeglib.h>
+
+// Static row buffer — 3 bytes per pixel, max screen width
+static uint8_t row_out[TFT_WIDTH * 3];
+static uint8_t row_in[TFT_WIDTH * 3];  // converted for display
 
 // BMP header structs (packed to match on-disk layout)
 #pragma pack(push, 1)
@@ -29,10 +35,69 @@ typedef struct {
 } BmpDibHeader;
 #pragma pack(pop)
 
-// Scratch buffer — sized for one full screen row in BGR666 (3 bytes/px, max width TFT_WIDTH)
-#define BMP_ROW_BUF_PIXELS  TFT_WIDTH
-static uint8_t row_out[BMP_ROW_BUF_PIXELS * 3];   // BGR666 output row
-static uint8_t row_in [BMP_ROW_BUF_PIXELS * 4];   // raw BMP row (up to 32bpp)
+int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath)
+{
+    FILE *f = fopen(filepath, "rb");
+    if (!f) { perror("draw_jpeg_file: fopen"); return -1; }
+
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_decompress(&cinfo);
+    jpeg_stdio_src(&cinfo, f);
+
+    if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
+        fprintf(stderr, "draw_jpeg_file: bad JPEG header\n");
+        goto err;
+    }
+
+    // Force output to RGB (not YCbCr)
+    cinfo.out_color_space = JCS_RGB;
+    jpeg_start_decompress(&cinfo);
+
+    int32_t img_w  = (int32_t)cinfo.output_width;
+    int32_t img_h  = (int32_t)cinfo.output_height;
+    int32_t draw_w = img_w;
+    int32_t draw_h = img_h;
+    if (x + draw_w > TFT_WIDTH)  draw_w = TFT_WIDTH  - x;
+    if (y + draw_h > TFT_HEIGHT) draw_h = TFT_HEIGHT - y;
+
+    set_window(x, y, x + draw_w - 1, y + draw_h - 1);
+
+    JSAMPROW row_ptr = row_out;
+
+    while ((int32_t)cinfo.output_scanline < draw_h) {
+        jpeg_read_scanlines(&cinfo, &row_ptr, 1);
+
+        // libjpeg outputs RGB — display wants BGR, both at 6-bit precision
+        uint8_t *src = row_out;
+        uint8_t *dst = row_in;
+        for (int32_t px = 0; px < draw_w; px++) {
+            dst[0] = src[2] & 0xFC;  // Blue  (was R at src[2]? no — RGB order)
+            dst[1] = src[1] & 0xFC;  // Green
+            dst[2] = src[0] & 0xFC;  // Red
+            dst += 3;
+            src += 3;
+        }
+
+        burst_write_bytes(row_in, (size_t)draw_w * 3);
+    }
+
+    // Drain any remaining scanlines if image is taller than display clip
+    while (cinfo.output_scanline < cinfo.output_height)
+        jpeg_read_scanlines(&cinfo, &row_ptr, 1);
+
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+    fclose(f);
+    return 0;
+
+err:
+    jpeg_destroy_decompress(&cinfo);
+    fclose(f);
+    return -1;
+}
 
 int draw_bmp_file(uint16_t x, uint16_t y, const char *filepath)
 {

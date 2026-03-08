@@ -11,6 +11,10 @@ cd into the ili9481-rpi directory and run `make` and then to run the main.c prog
 sudo ./main
 ```
 
+## Requirements
+
+- `libjpeg-dev` : for Decoding JPEG images
+
 ## To compile ili9481_parallel.c on Windows WSL (Ubuntu based)
 
 cd into correct windows directory
