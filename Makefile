@@ -5,10 +5,10 @@ SRCS = main.c ili9481_parallel.c ili9481_img.c
 OBJS = $(SRCS:.c=.o)
 
 main: $(OBJS)
-	$(CC) $(OBJS) -o main 
+	$(CC) $(OBJS) -o main -ljpeg -lm
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@ -ljpeg
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -f $(OBJS) main
