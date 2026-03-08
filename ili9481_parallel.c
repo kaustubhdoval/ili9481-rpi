@@ -285,6 +285,26 @@ void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg)
     }
 }
 
+void draw_char_scaled(uint16_t x, uint16_t y, char c, uint8_t scale, uint16_t fg)
+{
+    if (scale == 0) return;
+    if ((unsigned char)c > FONT_LAST) c = '?';
+
+    const unsigned char *glyph = &cp437font8x8[6 + ((unsigned char)c * FONT_HEIGHT)];
+
+    expand_dirty(x, y, FONT_WIDTH * scale, FONT_HEIGHT * scale);
+
+    for (int row = 0; row < FONT_HEIGHT; row++) {
+        unsigned char bits = glyph[row];
+        for (int col = 0; col < FONT_WIDTH; col++) {
+            if (bits & (0x80 >> col)) {
+                // fill a scale×scale block
+                fill_rect(x + row * scale, y + col * scale, scale, scale, fg);
+            }
+        }
+    }
+}
+
 void draw_string(uint16_t x, uint16_t y, const char *str, uint16_t fg)
 {
     uint16_t cursor_x = x;
@@ -309,6 +329,31 @@ void draw_string(uint16_t x, uint16_t y, const char *str, uint16_t fg)
 
         draw_char(cursor_x, y, *str, fg);
         cursor_x += FONT_WIDTH;
+        str++;
+    }
+}
+
+void draw_string_scaled(uint16_t x, uint16_t y, const char *str,
+                        uint8_t scale, uint16_t fg)
+{
+    uint16_t cursor_x = x;
+    uint16_t line_height = FONT_HEIGHT * scale;
+
+    while (*str) {
+        if (*str == '\n') {
+            cursor_x = x;
+            y += line_height;
+            str++;
+            continue;
+        }
+        if (cursor_x + FONT_WIDTH * scale > TFT_WIDTH) {
+            cursor_x = x;
+            y += line_height;
+        }
+        if (y + line_height > TFT_HEIGHT) break;
+
+        draw_char_scaled(cursor_x, y, *str, scale, fg);
+        cursor_x += FONT_WIDTH * scale;
         str++;
     }
 }

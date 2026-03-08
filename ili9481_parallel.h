@@ -49,7 +49,9 @@ void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
 void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
 
 void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg);
+void draw_char_scaled(uint16_t x, uint16_t y, char c, uint8_t scale, uint16_t fg);
 void draw_string(uint16_t x, uint16_t y, const char *str, uint16_t fg);
+void draw_string_scaled(uint16_t x, uint16_t y, const char *str, uint8_t scale, uint16_t fg);
 
 uint8_t reverse_bits(uint8_t x);
 

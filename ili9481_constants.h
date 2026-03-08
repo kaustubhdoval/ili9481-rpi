@@ -33,8 +33,8 @@
 
 // MADCTL - Memory Data Access Control
 // MY MX MV ML RGB MH 0 0 
-// 1  0  1  0   1  0
-#define TFT_MADCTL 0b10101000    
+// 1  0  1  0   1  0        -> 0b10101000
+#define TFT_MADCTL 0xA8     
 
 // Generic commands used by TFT_eSPI.cpp init sequences
 #define TFT_PARALLEL_8_BIT 1
