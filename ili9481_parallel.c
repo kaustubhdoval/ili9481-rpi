@@ -358,13 +358,40 @@ void draw_string_scaled(uint16_t x, uint16_t y, const char *str,
     }
 }
 
-// Function to reverse bits
-uint8_t reverse_bits(uint8_t b) {
-    uint8_t r = 0;
-    for (int i = 0; i < 8; i++) {
-        r = (r << 1) | ((b >> i) & 1);
+void draw_bitmap(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                 const uint16_t *bitmap, uint16_t transparent_color)
+{
+    expand_dirty(x, y, w, h);
+
+    for (uint16_t j = 0; j < h; j++) {
+        for (uint16_t i = 0; i < w; i++) {
+            uint16_t color = bitmap[j * w + i];
+            if (color != transparent_color) {          // -1 = no transparency
+                set_pixel(x + i, y + j, color);
+            }
+        }
     }
-    return r;
+}
+
+void draw_bitmap_mono(uint16_t x, uint16_t y,
+                      uint16_t w, uint16_t h,
+                      const uint8_t *bitmap,
+                      uint16_t color)
+{
+    for (uint16_t j = 0; j < h; j++)
+    {
+        for (uint16_t i = 0; i < w; i++)
+        {
+            uint32_t bit_index = j * w + i;
+            uint32_t byte_index = bit_index / 8;
+            uint8_t bit = 7 - (bit_index % 8);
+
+            if (bitmap[byte_index] & (1 << bit))
+            {
+                set_pixel(x + i, y + j, color);
+            }
+        }
+    }
 }
 
 void ili9481_reset(void)

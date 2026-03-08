@@ -52,8 +52,8 @@ void draw_char(uint16_t x, uint16_t y, char c, uint16_t fg);
 void draw_char_scaled(uint16_t x, uint16_t y, char c, uint8_t scale, uint16_t fg);
 void draw_string(uint16_t x, uint16_t y, const char *str, uint16_t fg);
 void draw_string_scaled(uint16_t x, uint16_t y, const char *str, uint8_t scale, uint16_t fg);
-
-uint8_t reverse_bits(uint8_t x);
+void draw_bitmap(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t *bitmap, uint16_t transparent_color);
+void draw_bitmap_mono(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *bitmap, uint16_t color);
 
 void ili9481_reset(void);
 void ili9481_start(void);

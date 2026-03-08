@@ -23,6 +23,7 @@
 
 // COLORS
 #define WHITE   0xFFFF  // White
+#define BLACK   0x0000  // Black
 #define RED     0xF800  // Red
 #define ORANGE  0xFD20  // Orange
 #define YELLOW  0xFFE0  // Yellow
