@@ -3,6 +3,7 @@
 
 #include "ili9481_constants.h"
 #include "ili9481_init.h"   // Plethora of other init sequences
+#include "assets/cp437font8x8.h"  // 8x8 font data
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,6 +1,5 @@
 // ili9481_parallel.c
 #include "ili9481_parallel.h"
-#include "cp437font8x8.h"  // 8x8 font data
 
 // nop count a variable you can change at runtime
 #define WR_SETUP_NOPS  4    
