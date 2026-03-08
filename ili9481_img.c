@@ -52,41 +52,42 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath)
         goto err;
     }
 
-    // Force output to RGB (not YCbCr)
     cinfo.out_color_space = JCS_RGB;
     jpeg_start_decompress(&cinfo);
 
-    int32_t img_w  = (int32_t)cinfo.output_width;
-    int32_t img_h  = (int32_t)cinfo.output_height;
-    int32_t draw_w = img_w;
-    int32_t draw_h = img_h;
+    uint32_t img_w = cinfo.output_width;
+    uint32_t img_h = cinfo.output_height;
+
+    // Clip draw dimensions to what fits on screen from (x,y)
+    uint32_t draw_w = img_w;
+    uint32_t draw_h = img_h;
     if (x + draw_w > TFT_WIDTH)  draw_w = TFT_WIDTH  - x;
     if (y + draw_h > TFT_HEIGHT) draw_h = TFT_HEIGHT - y;
 
+    // set_window uses the clipped dimensions
     set_window(x, y, x + draw_w - 1, y + draw_h - 1);
 
-    JSAMPROW row_ptr = row_out;
+    JSAMPROW row_ptr = row_in;
 
-    while ((int32_t)cinfo.output_scanline < draw_h) {
+    uint32_t scanline = 0;
+    while (cinfo.output_scanline < cinfo.output_height) {
         jpeg_read_scanlines(&cinfo, &row_ptr, 1);
 
-        // libjpeg outputs RGB — display wants BGR, both at 6-bit precision
-        uint8_t *src = row_out;
-        uint8_t *dst = row_in;
-        for (int32_t px = 0; px < draw_w; px++) {
-            dst[0] = src[2] & 0xFC;  // Blue  (was R at src[2]? no — RGB order)
-            dst[1] = src[1] & 0xFC;  // Green
-            dst[2] = src[0] & 0xFC;  // Red
-            dst += 3;
-            src += 3;
+        // Only send rows that fall within the clipped draw_h
+        if (scanline < draw_h) {
+            uint8_t *src = row_in;
+            uint8_t *dst = row_out;
+            for (uint32_t px = 0; px < draw_w; px++) {
+                dst[0] = src[2] & 0xFC;  // Blue  — libjpeg RGB: src[2] = B
+                dst[1] = src[1] & 0xFC;  // Green — src[1] = G
+                dst[2] = src[0] & 0xFC;  // Red   — src[0] = R
+                dst += 3;
+                src += 3;
+            }
+            burst_write_bytes(row_out, (size_t)draw_w * 3);
         }
-
-        burst_write_bytes(row_in, (size_t)draw_w * 3);
+        scanline++;
     }
-
-    // Drain any remaining scanlines if image is taller than display clip
-    while (cinfo.output_scanline < cinfo.output_height)
-        jpeg_read_scanlines(&cinfo, &row_ptr, 1);
 
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
