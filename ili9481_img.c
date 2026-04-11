@@ -85,11 +85,19 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
 
             for (uint32_t px_i = 0; px_i < draw_w; px_i++) {
                 // Flip horizontally: mirror pixel order
-                uint32_t src_i = (draw_w - 1 - px_i);
+                uint32_t src_i = (img_w - 1 - px_i);
+                uint8_t r, g, b
 
-                uint8_t r = row_buf[src_i * 3 + 0];
-                uint8_t g = row_buf[src_i * 3 + 1];
-                uint8_t b = row_buf[src_i * 3 + 2];
+                if (components == 3){
+                    r = row_buf[src_i * 3 + 0];
+                    g = row_buf[src_i * 3 + 1];
+                    b = row_buf[src_i * 3 + 2];
+                }
+                else {
+                    uint8_t gray = row_buf[src_i]
+                    r = g = b = gray
+                }
+                
 
                 uint16_t color = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
                 set_pixel(x + px_i, py, color);
