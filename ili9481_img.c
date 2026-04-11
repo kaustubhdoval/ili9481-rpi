@@ -35,7 +35,7 @@ typedef struct {
 } BmpDibHeader;
 #pragma pack(pop)
 
-int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath)
+int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
 {
     FILE *f = fopen(filepath, "rb");
     if (!f) { perror("draw_jpeg_file: fopen"); return -1; }
@@ -52,43 +52,60 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath)
         goto err;
     }
 
-    cinfo.out_color_space = JCS_RGB;
+    // Let libjpeg do the grayscale conversion natively when requested
+    cinfo.out_color_space = grayscale ? JCS_GRAYSCALE : JCS_RGB;
     jpeg_start_decompress(&cinfo);
 
     uint32_t img_w = cinfo.output_width;
     uint32_t img_h = cinfo.output_height;
 
-    // Clip draw dimensions to what fits on screen from (x,y)
     uint32_t draw_w = img_w;
     uint32_t draw_h = img_h;
     if (x + draw_w > TFT_WIDTH)  draw_w = TFT_WIDTH  - x;
     if (y + draw_h > TFT_HEIGHT) draw_h = TFT_HEIGHT - y;
 
-    // set_window uses the clipped dimensions
-    set_window(x, y, x + draw_w - 1, y + draw_h - 1);
+    // One scanline buffer — full image width, 1 or 3 bytes per pixel
+    int components = cinfo.output_components;  // 1 for grayscale, 3 for RGB
+    uint8_t *row_buf = malloc(img_w * components);
+    if (!row_buf) {
+        fprintf(stderr, "draw_jpeg_file: OOM\n");
+        goto err;
+    }
 
-    JSAMPROW row_ptr = row_in;
-
+    JSAMPROW row_ptr = row_buf;
     uint32_t scanline = 0;
+
     while (cinfo.output_scanline < cinfo.output_height) {
         jpeg_read_scanlines(&cinfo, &row_ptr, 1);
 
-        // Only send rows that fall within the clipped draw_h
         if (scanline < draw_h) {
-            uint8_t *src = row_in;
-            uint8_t *dst = row_out;
-            for (uint32_t px = 0; px < draw_w; px++) {
-                dst[0] = src[2] & 0xFC;  // Blue  — libjpeg RGB: src[2] = B
-                dst[1] = src[1] & 0xFC;  // Green — src[1] = G
-                dst[2] = src[0] & 0xFC;  // Red   — src[0] = R
-                dst += 3;
-                src += 3;
+            uint16_t py = y + scanline;
+            for (uint32_t px_i = 0; px_i < draw_w; px_i++) {
+                uint16_t color;
+                if (grayscale) {
+                    uint8_t lum = row_buf[px_i];
+                    // Replicate luminance into RGB565
+                    uint8_t r5 = lum >> 3;
+                    uint8_t g6 = lum >> 2;
+                    uint8_t b5 = lum >> 3;
+                    color = (r5 << 11) | (g6 << 5) | b5;
+                } else {
+                    uint8_t r = row_buf[px_i * 3 + 0];
+                    uint8_t g = row_buf[px_i * 3 + 1];
+                    uint8_t b = row_buf[px_i * 3 + 2];
+                    // Pack into RGB565
+                    color = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+                }
+                set_pixel(x + px_i, py, color);
             }
-            burst_write_bytes(row_out, (size_t)draw_w * 3);
         }
         scanline++;
     }
 
+    // Mark the drawn region dirty so flush_backbuffer picks it up
+    expand_dirty(x, y, draw_w, draw_h);
+
+    free(row_buf);
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
     fclose(f);

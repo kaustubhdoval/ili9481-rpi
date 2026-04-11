@@ -32,7 +32,9 @@ int main(void){
     flush_backbuffer();
     sleep(2);
 
-    draw_jpeg_file(0, 0, "assets/helloThere.jpg");    // this function also flushes backbuffer 
+    fill_screen(WHITE);
+    draw_jpeg_file(0, 0, "assets/helloThere.jpg", false);   
+    flush_backbuffer(); 
 
     ili9481_stop();
     return 0;
