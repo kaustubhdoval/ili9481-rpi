@@ -5,10 +5,6 @@
 static uint8_t row_out[TFT_WIDTH * 3];
 static uint8_t row_in[TFT_WIDTH * 3];  
 
-// Add a gamma correction LUT
-// Why? : JPEG data is stored in sRGB (gamma ~2.2) but we treat it as linear when converting to RGB565
-uint8_t gamma_lut[256];
-
 // BMP header structs (packed to match on-disk layout)
 #pragma pack(push, 1)
 typedef struct {
@@ -96,9 +92,9 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
                 uint8_t r, g, b;
 
                 if (components == 3){
-                    r = gamma_lut[row_buf[src_i * 3 + 0]];
-                    g = gamma_lut[row_buf[src_i * 3 + 1]];
-                    b = gamma_lut[row_buf[src_i * 3 + 2]];
+                    r = row_buf[src_i * 3 + 0];
+                    g = row_buf[src_i * 3 + 1];
+                    b = row_buf[src_i * 3 + 2];
                 }
                 else {
                     uint8_t gray = row_buf[src_i];

@@ -120,16 +120,24 @@ void flush_backbuffer(void) {
     int idx = 0;
 
     for (int j = 0; j < h; j++) {
-        for (int i = 0; i < w; i++) {
-            uint16_t color = backbuffer[(dirty_y0 + j) * TFT_WIDTH + (dirty_x0 + i)];
-            uint8_t b = (color & 0x1F) << 3;
-            uint8_t g = ((color >> 5) & 0x3F) << 2;
-            uint8_t r = ((color >> 11) & 0x1F) << 3;
-            buf[idx++] = r;
-            buf[idx++] = g;
-            buf[idx++] = b;
-        }
+    for (int i = 0; i < w; i++) {
+        uint16_t color = backbuffer[(dirty_y0 + j) * TFT_WIDTH + (dirty_x0 + i)];
+
+        uint8_t r5 = (color >> 11) & 0x1F;
+        uint8_t g6 = (color >> 5)  & 0x3F;
+        uint8_t b5 =  color        & 0x1F;
+
+        // Bit-replicate to fill all 8 bits properly
+        // 5-bit: expand by repeating top 3 bits in the bottom 3
+        uint8_t r = (r5 << 3) | (r5 >> 2);   // RRRRR000 | 000RRR = RRRRRRRR
+        uint8_t g = (g6 << 2) | (g6 >> 4);   // GGGGGG00 | 0000GG  = GGGGGGGG
+        uint8_t b = (b5 << 3) | (b5 >> 2);
+
+        buf[idx++] = r;
+        buf[idx++] = g;
+        buf[idx++] = b;
     }
+}
 
     set_window(dirty_x0, dirty_y0, dirty_x1 - 1, dirty_y1 - 1);
     burst_write_bytes(buf, (size_t)w * h * 3);
@@ -173,15 +181,17 @@ void write_data(uint8_t data)
 // 18-bit color mode (BGR666) - sends 3 bytes per pixel
 void write_data16(uint16_t color)
 {
-    // Extract RGB565 channels
-    uint8_t r = ((color >> 11) & 0x1F);  // 5-bit red
-    uint8_t g = ((color >> 5) & 0x3F);   // 6-bit green
-    uint8_t b = (color & 0x1F);          // 5-bit blue
-    
-    // Expand to 6 bits and send in BGR order
-    write_data(b << 3);  // BLUE first (xxxxx000 -> xxxxxx00)
-    write_data(g << 2);  // GREEN second (xxxxxx00)
-    write_data(r << 3);  // RED third (xxxxx000 -> xxxxxx00)
+    uint8_t r5 = (color >> 11) & 0x1F;
+    uint8_t g6 = (color >> 5)  & 0x3F;
+    uint8_t b5 =  color        & 0x1F;
+
+    uint8_t r = (r5 << 3) | (r5 >> 2);
+    uint8_t g = (g6 << 2) | (g6 >> 4);
+    uint8_t b = (b5 << 3) | (b5 >> 2);
+
+    write_data(b);
+    write_data(g);
+    write_data(r);
 }
 
 // Add a separate function for coordinates
