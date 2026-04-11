@@ -80,23 +80,18 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
         jpeg_read_scanlines(&cinfo, &row_ptr, 1);
 
         if (scanline < draw_h) {
-            uint16_t py = y + scanline;
+            // Flip vertically: write bottom-up into backbuffer
+            uint16_t py = y + (draw_h - 1 - scanline);
+
             for (uint32_t px_i = 0; px_i < draw_w; px_i++) {
-                uint16_t color;
-                if (grayscale) {
-                    uint8_t lum = row_buf[px_i];
-                    // Replicate luminance into RGB565
-                    uint8_t r5 = lum >> 3;
-                    uint8_t g6 = lum >> 2;
-                    uint8_t b5 = lum >> 3;
-                    color = (r5 << 11) | (g6 << 5) | b5;
-                } else {
-                    uint8_t r = row_buf[px_i * 3 + 0];
-                    uint8_t g = row_buf[px_i * 3 + 1];
-                    uint8_t b = row_buf[px_i * 3 + 2];
-                    // Pack into RGB565
-                    color = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
-                }
+                // Flip horizontally: mirror pixel order
+                uint32_t src_i = (draw_w - 1 - px_i);
+
+                uint8_t r = row_buf[src_i * 3 + 0];
+                uint8_t g = row_buf[src_i * 3 + 1];
+                uint8_t b = row_buf[src_i * 3 + 2];
+
+                uint16_t color = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
                 set_pixel(x + px_i, py, color);
             }
         }

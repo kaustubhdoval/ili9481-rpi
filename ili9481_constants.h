@@ -33,8 +33,10 @@
 #define VIOLET  0xF81F   // Violet
 
 // MADCTL - Memory Data Access Control
+// Flip compensations are tuned for MADCTL=0xA8 (MY=1, MV=1, RGB=1)
+// If MADCTL changes, revisit the py and src_i calculations below
 // MY MX MV ML RGB MH 0 0 
-// 1  0  1  0   1  0        -> 0b10101000
+// 1  0  1  0   1  0        -> 0b10101000   -> 0xA8
 #define TFT_MADCTL 0xA8     
 
 // Generic commands used by TFT_eSPI.cpp init sequences

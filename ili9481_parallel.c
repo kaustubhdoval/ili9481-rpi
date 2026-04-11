@@ -125,9 +125,9 @@ void flush_backbuffer(void) {
             uint8_t b = (color & 0x1F) << 3;
             uint8_t g = ((color >> 5) & 0x3F) << 2;
             uint8_t r = ((color >> 11) & 0x1F) << 3;
-            buf[idx++] = b;
-            buf[idx++] = g;
             buf[idx++] = r;
+            buf[idx++] = g;
+            buf[idx++] = b;
         }
     }
 
