@@ -96,7 +96,6 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
                 }
 
                 // Write full 8-bit RGB straight into the 18-bit backbuffer.
-                // No RGB565 quantisation — colour fidelity is preserved.
                 size_t idx = ((size_t)py * TFT_WIDTH + (x + px_i)) * 3;
                 backbuffer[idx + 0] = r;
                 backbuffer[idx + 1] = g;
