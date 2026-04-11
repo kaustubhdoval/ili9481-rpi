@@ -30,12 +30,6 @@ typedef struct {
 } BmpDibHeader;
 #pragma pack(pop)
 
-void init_gamma() {
-    for (int i = 0; i < 256; i++) {
-        gamma_lut[i] = (uint8_t)(pow(i / 255.0, 2.2) * 255.0 + 0.5);
-    }
-}
-
 int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
 {
     FILE *f = fopen(filepath, "rb");
@@ -56,9 +50,6 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
     // Let libjpeg do the grayscale conversion natively when requested
     cinfo.out_color_space = grayscale ? JCS_GRAYSCALE : JCS_RGB;
     jpeg_start_decompress(&cinfo);
-
-    // Initialize Gamma LUT
-    init_gamma();
 
     uint32_t img_w = cinfo.output_width;
     uint32_t img_h = cinfo.output_height;

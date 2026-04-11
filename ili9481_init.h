@@ -26,64 +26,68 @@ static inline void ili9481_init(void)
     write_cmd(TFT_SLPOUT);
     delay(20);
 
+    // Power setting
     write_cmd(0xD0);
     write_data(0x07);
     write_data(0x42);
-    write_data(0x1B);
+    write_data(0x18);           // was 0x1B — try 0x18 for slightly more headroom
 
+    // VCOM Control
     write_cmd(0xD1);
-    write_data(0x00);
-    write_data(0x14);
-    write_data(0x1B);
+    write_data(0x00);   // BOOSTen
+    write_data(0x07);   // VCIout 
+    write_data(0x10);   // VCOM Amplitude
 
+    // Power Setting for normal mode
     write_cmd(0xD2);
     write_data(0x01);
     write_data(0x12);
 
+    // Panel driving setting 
     write_cmd(0xC0);
     write_data(0x10);
     write_data(0x3B);
     write_data(0x00);
     write_data(0x02);
-    write_data(0x01);
+    write_data(0x11);           // REV=1 (important for most panels)
+    write_data(0x00);           // missing byte added
 
+    // Display timing for normal mode
+    write_cmd(0xC1);
+    write_data(0x10);
+    write_data(0x10);
+    write_data(0x02);
+    write_data(0x02);
+
+    // Frame Rate
     write_cmd(0xC5);
-    write_data(0x03);
+    write_data(0x00);
 
+    // Gamma
     write_cmd(0xC8);
     write_data(0x00);
-    write_data(0x46);
-    write_data(0x44);
-    write_data(0x50);
-    write_data(0x04);
+    write_data(0x32);
+    write_data(0x36);
+    write_data(0x45);
+    write_data(0x06);
     write_data(0x16);
-    write_data(0x33);
-    write_data(0x13);
+    write_data(0x37);
+    write_data(0x75);
     write_data(0x77);
-    write_data(0x05);
-    write_data(0x0F);
+    write_data(0x54);
+    write_data(0x0C);
     write_data(0x00);
 
     write_cmd(0x36);
-    write_data(TFT_MADCTL); // Change to RGB order
+    write_data(TFT_MADCTL);         
 
     write_cmd(0x3A);
-    write_data(0x66);   // 18-bit colour interface
-    //write_data(0x55); // 16-bit colour interface
-    
-    write_data(0x00);
-    write_data(0x00);
-    write_data(0x01);
-    write_data(0x3F);
-
-    write_data(0x00);
-    write_data(0x00);
-    write_data(0x01);
-    write_data(0xE0);
+    write_data(0x66);               // 18-bit colour interface
+    //write_data(0x55);             // 16-bit colour interface
 
     delay(120);
     
-    write_cmd(0x21); // Inversion 
+    write_cmd(0x21);                // Inversion ON
     write_cmd(TFT_DISPON);
 
 #elif ILI9481_INIT_1
