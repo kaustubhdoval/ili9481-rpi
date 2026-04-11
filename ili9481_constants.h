@@ -1,9 +1,6 @@
 #define TFT_WIDTH 480
 #define TFT_HEIGHT 320
 
-// Delay between some initialisation commands
-#define TFT_INIT_DELAY 0x02
-
 // Control pins (BCM)
 #define LCD_RD   2
 #define LCD_WR   3
@@ -22,15 +19,19 @@
 #define LCD_D7   18
 
 // COLORS
-#define WHITE   0xFFFF  // White
-#define BLACK   0x0000  // Black
-#define RED     0xF800  // Red
-#define ORANGE  0xFD20  // Orange
-#define YELLOW  0xFFE0  // Yellow
-#define GREEN   0x07E0  // Green
-#define BLUE    0x001F  // Blue
-#define INDIGO  0x781F  // Indigo
-#define VIOLET  0xF81F   // Violet
+#define WHITE   0x00FFFFFF
+#define BLACK   0x00000000
+#define RED     0x00FF0000
+#define ORANGE  0x00FF8000
+#define YELLOW  0x00FFFF00
+#define GREEN   0x0000FF00
+#define BLUE    0x000000FF
+#define INDIGO  0x004B0082
+#define VIOLET  0x00EE82EE
+#define CYAN    0x0000FFFF
+#define MAGENTA 0x00FF00FF
+#define GRAY    0x00808080
+#define DARKGRAY 0x00404040
 
 // MADCTL - Memory Data Access Control
 // Flip compensations are tuned for MADCTL=0xA8 (MY=1, MV=1, RGB=1)
@@ -39,7 +40,7 @@
 // 1  0  1  0   1  0        -> 0b10101000   -> 0xA8
 #define TFT_MADCTL 0xA8     
 
-// Generic commands used by TFT_eSPI.cpp init sequences
+// Generic commands used by init sequences
 #define TFT_PARALLEL_8_BIT 1
 
 #define TFT_SLPOUT 0x11
