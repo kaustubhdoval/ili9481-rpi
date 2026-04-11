@@ -11,6 +11,10 @@
 static uint8_t row_out[TFT_WIDTH * 3];
 static uint8_t row_in[TFT_WIDTH * 3];  // converted for display
 
+// Add a gamma correction LUT
+// Why? : JPEG data is stored in sRGB (gamma ~2.2) but we treat it as linear when converting to RGB565
+uint8_t gamma_lut[256];
+
 // BMP header structs (packed to match on-disk layout)
 #pragma pack(push, 1)
 typedef struct {
@@ -36,6 +40,12 @@ typedef struct {
 } BmpDibHeader;
 #pragma pack(pop)
 
+void init_gamma() {
+    for (int i = 0; i < 256; i++) {
+        gamma_lut[i] = (uint8_t)(pow(i / 255.0, 2.2) * 255.0 + 0.5);
+    }
+}
+
 int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
 {
     FILE *f = fopen(filepath, "rb");
@@ -56,6 +66,9 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
     // Let libjpeg do the grayscale conversion natively when requested
     cinfo.out_color_space = grayscale ? JCS_GRAYSCALE : JCS_RGB;
     jpeg_start_decompress(&cinfo);
+
+    // Initialize Gamma LUT
+    init_gamma();
 
     uint32_t img_w = cinfo.output_width;
     uint32_t img_h = cinfo.output_height;
@@ -86,12 +99,12 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
             for (uint32_t px_i = 0; px_i < draw_w; px_i++) {
                 // Flip horizontally: mirror pixel order
                 uint32_t src_i = (img_w - 1 - px_i);
-                uint8_t r, g, b
+                uint8_t r, g, b;
 
                 if (components == 3){
-                    r = row_buf[src_i * 3 + 0];
-                    g = row_buf[src_i * 3 + 1];
-                    b = row_buf[src_i * 3 + 2];
+                    r = gamma_lut[row_buf[src_i * 3 + 0]];
+                    g = gamma_lut[row_buf[src_i * 3 + 1]];
+                    b = gamma_lut[row_buf[src_i * 3 + 2]];
                 }
                 else {
                     uint8_t gray = row_buf[src_i]
