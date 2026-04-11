@@ -1,15 +1,9 @@
 #include "ili9481_parallel.h"
-
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
-#include <jpeglib.h>
+#include "ili9481_img.h"
 
 // Static row buffer — 3 bytes per pixel, max screen width
 static uint8_t row_out[TFT_WIDTH * 3];
-static uint8_t row_in[TFT_WIDTH * 3];  // converted for display
+static uint8_t row_in[TFT_WIDTH * 3];  
 
 // Add a gamma correction LUT
 // Why? : JPEG data is stored in sRGB (gamma ~2.2) but we treat it as linear when converting to RGB565
@@ -107,8 +101,8 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
                     b = gamma_lut[row_buf[src_i * 3 + 2]];
                 }
                 else {
-                    uint8_t gray = row_buf[src_i]
-                    r = g = b = gray
+                    uint8_t gray = row_buf[src_i];
+                    r = g = b = gray;
                 }
                 
 
