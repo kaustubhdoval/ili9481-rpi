@@ -1,18 +1,18 @@
 // ili9481_parallel.c
 #include "ili9481_parallel.h"
 
-// nop count a variable you can change at runtime
-#define WR_SETUP_NOPS  4    
-#define WR_HOLD_NOPS   4    
-#define WR_CYCLE_NOPS  4 
+#define WR_SETUP_NOPS  4
+#define WR_HOLD_NOPS   4
+#define WR_CYCLE_NOPS  4
 
 unsigned int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LCD_D6, LCD_D7};
 
 volatile uint8_t *gpio_base = NULL;
 uint32_t data_lut[256];
 
-uint16_t backbuffer[TFT_WIDTH * TFT_HEIGHT * 3];
-static uint16_t dirty_x0, dirty_y0, dirty_x1, dirty_y1; // dirty region tracking
+// 18-bit backbuffer: 3 bytes per pixel, stored as R, G, B
+uint8_t backbuffer[TFT_WIDTH * TFT_HEIGHT * 3];
+static uint16_t dirty_x0, dirty_y0, dirty_x1, dirty_y1;
 
 static void gpio_set_output(uint8_t pin)
 {
@@ -41,17 +41,14 @@ void gpio_mmap_init(void)
         exit(1);
     }
 
-    // Set all our pins to output mode
     uint8_t all_pins[] = {LCD_RD, LCD_WR, LCD_RS, LCD_CS, LCD_RST,
                           LCD_D0, LCD_D1, LCD_D2, LCD_D3,
                           LCD_D4, LCD_D5, LCD_D6, LCD_D7};
     for (int i = 0; i < 13; i++)
         gpio_set_output(all_pins[i]);
 
-    // Drive control lines high (idle state)
     GPIO_SET = (1<<LCD_RD)|(1<<LCD_WR)|(1<<LCD_RS)|(1<<LCD_CS)|(1<<LCD_RST);
 
-    // Precompute 256-entry LUT for data bus bit scatter
     for (int val = 0; val < 256; val++) {
         uint32_t mask = 0;
         if (val & (1<<0)) mask |= (1<<LCD_D0);
@@ -100,10 +97,10 @@ void burst_write_bytes(const uint8_t *data, size_t len)
         for(int n = 0; n < WR_SETUP_NOPS; n++) __asm__ volatile("nop");
         GPIO_CLR = (1 << LCD_WR);
         for(int n = 0; n < WR_HOLD_NOPS; n++) __asm__ volatile("nop");
-        
+
         GPIO_SET = (1 << LCD_WR);
         for(int n = 0; n < WR_CYCLE_NOPS; n++) __asm__ volatile("nop");
-}
+    }
 
     set_line(LCD_CS, 1);
 }
@@ -111,37 +108,39 @@ void burst_write_bytes(const uint8_t *data, size_t len)
 // Write one 8-bit command
 void write_cmd(uint8_t cmd)
 {
-    set_line(LCD_RS, 0);  // RS/DC = 0 for command
-    __asm__ volatile("nop"); __asm__ volatile("nop");  
-    set_line(LCD_CS, 0);  // CS low
-    __asm__ volatile("nop"); __asm__ volatile("nop");  
+    set_line(LCD_RS, 0);
+    __asm__ volatile("nop"); __asm__ volatile("nop");
+    set_line(LCD_CS, 0);
+    __asm__ volatile("nop"); __asm__ volatile("nop");
 
     set_data_bus(cmd);
 
     for(int n = 0; n < WR_SETUP_NOPS; n++) __asm__ volatile("nop");
-    set_line(LCD_WR, 0);  // WR pulse
-    __asm__ volatile("nop"); __asm__ volatile("nop");      
+    set_line(LCD_WR, 0);
+    __asm__ volatile("nop"); __asm__ volatile("nop");
     set_line(LCD_WR, 1);
-    set_line(LCD_CS, 1);  // CS high
+    set_line(LCD_CS, 1);
 }
 
 // Write one 8-bit data value
 void write_data(uint8_t data)
 {
-    set_line(LCD_RS, 1);  // RS/DC = 1 for data
-    __asm__ volatile("nop"); __asm__ volatile("nop");  
-    set_line(LCD_CS, 0);  // CS low
-    __asm__ volatile("nop"); __asm__ volatile("nop");  
+    set_line(LCD_RS, 1);
+    __asm__ volatile("nop"); __asm__ volatile("nop");
+    set_line(LCD_CS, 0);
+    __asm__ volatile("nop"); __asm__ volatile("nop");
 
     set_data_bus(data);
 
     for(int n = 0; n < WR_SETUP_NOPS; n++) __asm__ volatile("nop");
     set_line(LCD_WR, 0);
-    __asm__ volatile("nop"); __asm__ volatile("nop");  
+    __asm__ volatile("nop"); __asm__ volatile("nop");
     set_line(LCD_WR, 1);
-    set_line(LCD_CS, 1);  // CS high
+    set_line(LCD_CS, 1);
 }
 
+// Sends a 24-bit colour (0x00RRGGBB) as 3 bytes to the display directly
+// (bypasses backbuffer — use for direct hardware writes only)
 void write_color24(uint32_t color)
 {
     write_data((color >> 16) & 0xFF);  // R
@@ -156,47 +155,49 @@ void write_data16(uint16_t color)
     uint8_t r5 = (color >> 11) & 0x1F;
     uint8_t g6 = (color >> 5)  & 0x3F;
     uint8_t b5 =  color        & 0x1F;
- 
+
     write_data((r5 << 3) | (r5 >> 2));
     write_data((g6 << 2) | (g6 >> 4));
     write_data((b5 << 3) | (b5 >> 2));
 }
 
-// Write Coordinates
 void write_coord16(uint16_t value)
 {
-    write_data((value >> 8) & 0xFF);    // High byte
-    write_data(value & 0xFF);           // Low byte
+    write_data((value >> 8) & 0xFF);
+    write_data(value & 0xFF);
 }
 
-void delay(uint32_t ms){
+void delay(uint32_t ms)
+{
     usleep(ms * 1000);
 }
 
-void reset_dirty(void) {
+void reset_dirty(void)
+{
     dirty_x0 = TFT_WIDTH;
     dirty_y0 = TFT_HEIGHT;
     dirty_x1 = 0;
     dirty_y1 = 0;
 }
 
-void expand_dirty(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+void expand_dirty(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
+{
     if (x < dirty_x0) dirty_x0 = x;
     if (y < dirty_y0) dirty_y0 = y;
     if ((x + w) > dirty_x1) dirty_x1 = x + w;
     if ((y + h) > dirty_y1) dirty_y1 = y + h;
 }
 
-// Flush full backbuffer to display 
+// Flush dirty region of backbuffer directly to display.
 void flush_backbuffer(void)
 {
     if (dirty_x0 >= dirty_x1 || dirty_y0 >= dirty_y1) return;
- 
+
     uint16_t w = dirty_x1 - dirty_x0;
     uint16_t h = dirty_y1 - dirty_y0;
- 
+
     set_window(dirty_x0, dirty_y0, dirty_x1 - 1, dirty_y1 - 1);
- 
+
     // If the dirty region is the full width we can burst the whole block at once
     if (dirty_x0 == 0 && w == TFT_WIDTH) {
         size_t offset = (size_t)dirty_y0 * TFT_WIDTH * 3;
@@ -208,41 +209,39 @@ void flush_backbuffer(void)
             burst_write_bytes(backbuffer + offset, (size_t)w * 3);
         }
     }
- 
+
     reset_dirty();
 }
 
-// Set full window (0..319, 0..479)
 void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
-    write_cmd(0x2A);             // Column address set
+    write_cmd(0x2A);
     write_coord16(x0);
     write_coord16(x1);
 
-    write_cmd(0x2B);             // Page address set
+    write_cmd(0x2B);
     write_coord16(y0);
     write_coord16(y1);
 
-    write_cmd(0x2C);             // Memory write
+    write_cmd(0x2C);
 }
 
+// color is 0x00RRGGBB
 void set_pixel(uint16_t x, uint16_t y, uint32_t color)
 {
     if (x >= TFT_WIDTH || y >= TFT_HEIGHT) return;
-    
     size_t idx = ((size_t)y * TFT_WIDTH + x) * 3;
     backbuffer[idx + 0] = (color >> 16) & 0xFF;  // R
     backbuffer[idx + 1] = (color >> 8)  & 0xFF;  // G
     backbuffer[idx + 2] =  color        & 0xFF;  // B
 }
 
-void fill_screen(uint32_t color) {
+void fill_screen(uint32_t color)
+{
     expand_dirty(0, 0, TFT_WIDTH, TFT_HEIGHT);
-    
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8)  & 0xFF;
     uint8_t b =  color        & 0xFF;
-    
     size_t total = (size_t)TFT_WIDTH * TFT_HEIGHT;
     for (size_t i = 0; i < total; i++) {
         backbuffer[i * 3 + 0] = r;
@@ -251,13 +250,12 @@ void fill_screen(uint32_t color) {
     }
 }
 
-void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t color) {
+void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t color)
+{
     expand_dirty(x, y, w, h);
-    
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8)  & 0xFF;
     uint8_t b =  color        & 0xFF;
-    
     for (int j = 0; j < h; j++) {
         size_t row_start = ((size_t)(y + j) * TFT_WIDTH + x) * 3;
         for (int i = 0; i < w; i++) {
@@ -268,21 +266,22 @@ void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t color) {
     }
 }
 
-void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint32_t color) {
+void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint32_t color)
+{
     uint16_t bx = x0 < x1 ? x0 : x1;
     uint16_t by = y0 < y1 ? y0 : y1;
     uint16_t bw = (x0 < x1 ? x1 - x0 : x0 - x1) + 1;
     uint16_t bh = (y0 < y1 ? y1 - y0 : y0 - y1) + 1;
     expand_dirty(bx, by, bw, bh);
- 
+
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8)  & 0xFF;
     uint8_t b =  color        & 0xFF;
- 
+
     int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     int err = dx + dy, e2;
- 
+
     while (1) {
         size_t idx = ((size_t)y0 * TFT_WIDTH + x0) * 3;
         backbuffer[idx + 0] = r;
@@ -298,17 +297,15 @@ void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint32_t colo
 void draw_char(uint16_t x, uint16_t y, char c, uint32_t fg)
 {
     if ((unsigned char)c > FONT_LAST) c = '?';
-
+    
     const unsigned char *glyph = &cp437font8x8[6 + ((unsigned char)c * FONT_HEIGHT)];
-
     expand_dirty(x, y, FONT_WIDTH, FONT_HEIGHT);
-
+    
     for (int row = 0; row < FONT_HEIGHT; row++) {
         unsigned char bits = glyph[row];
         for (int col = 0; col < FONT_WIDTH; col++) {
-            if (bits & (0x80 >> col)) {
+            if (bits & (0x80 >> col))
                 set_pixel(x + row, y + col, fg);
-            }
         }
     }
 }
@@ -317,18 +314,15 @@ void draw_char_scaled(uint16_t x, uint16_t y, char c, uint8_t scale, uint32_t fg
 {
     if (scale == 0) return;
     if ((unsigned char)c > FONT_LAST) c = '?';
-
+    
     const unsigned char *glyph = &cp437font8x8[6 + ((unsigned char)c * FONT_HEIGHT)];
-
     expand_dirty(x, y, FONT_WIDTH * scale, FONT_HEIGHT * scale);
-
+    
     for (int row = 0; row < FONT_HEIGHT; row++) {
         unsigned char bits = glyph[row];
         for (int col = 0; col < FONT_WIDTH; col++) {
-            if (bits & (0x80 >> col)) {
-                // fill a scale×scale block
+            if (bits & (0x80 >> col))
                 fill_rect(x + row * scale, y + col * scale, scale, scale, fg);
-            }
         }
     }
 }
@@ -345,7 +339,7 @@ void draw_string(uint16_t x, uint16_t y, const char *str, uint32_t fg)
         str++;
     }
 }
- 
+
 void draw_string_scaled(uint16_t x, uint16_t y, const char *str, uint8_t scale, uint32_t fg)
 {
     uint16_t cursor_x = x;
@@ -359,7 +353,7 @@ void draw_string_scaled(uint16_t x, uint16_t y, const char *str, uint8_t scale, 
         str++;
     }
 }
- 
+
 // bitmap pixels are 0x00RRGGBB; transparent_color = 0xFFFFFFFF to disable
 void draw_bitmap(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
                  const uint32_t *bitmap, uint32_t transparent_color)
@@ -373,7 +367,7 @@ void draw_bitmap(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
         }
     }
 }
- 
+
 void draw_bitmap_mono(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
                       const uint8_t *bitmap, uint32_t color)
 {
@@ -390,22 +384,18 @@ void draw_bitmap_mono(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
 
 void ili9481_reset(void)
 {
-    // VCI power stable
-    usleep(10000);  // Wait 10ms after power on
-    
+    usleep(10000);
     set_line(LCD_RST, 1);
-    usleep(1000);   // RESX high for 1ms
-    
+    usleep(1000);
     set_line(LCD_RST, 0);
-    usleep(10000);  // RESX low for at least 10μs 
-    
+    usleep(10000);
     set_line(LCD_RST, 1);
-    usleep(120000); // Wait 120ms before sending commands 
+    usleep(120000);
 }
 
 void ili9481_start(void)
 {
-    gpio_mmap_init();      
+    gpio_mmap_init();
     ili9481_reset();
     ili9481_init();
     reset_dirty();
