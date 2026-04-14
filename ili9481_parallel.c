@@ -10,7 +10,7 @@ unsigned int data_gpios[8] = {LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5, LC
 volatile uint8_t *gpio_base = NULL;
 uint32_t data_lut[256];
 
-// 18-bit backbuffer: 3 bytes per pixel, stored as R, G, B
+// 18-bit backbuffer: 3 bytes per pixel, stored as R, G, B (transmitted to panel in B, G, R order)
 uint8_t backbuffer[TFT_WIDTH * TFT_HEIGHT * 3];
 static uint16_t dirty_x0, dirty_y0, dirty_x1, dirty_y1;
 
@@ -148,19 +148,6 @@ void write_color24(uint32_t color)
     write_data( color        & 0xFF);  // B
 }
 
-// Legacy helper kept for any callers that still pass RGB565.
-// Expands to 24-bit and writes directly to hardware (no backbuffer).
-void write_data16(uint16_t color)
-{
-    uint8_t r5 = (color >> 11) & 0x1F;
-    uint8_t g6 = (color >> 5)  & 0x3F;
-    uint8_t b5 =  color        & 0x1F;
-
-    write_data((r5 << 3) | (r5 >> 2));
-    write_data((g6 << 2) | (g6 >> 4));
-    write_data((b5 << 3) | (b5 >> 2));
-}
-
 void write_coord16(uint16_t value)
 {
     write_data((value >> 8) & 0xFF);
@@ -240,9 +227,9 @@ void set_pixel(uint16_t x, uint16_t y, uint32_t color)
     b = (b & 0xFC) | (b >> 6);
     
     size_t idx = ((size_t)y * TFT_WIDTH + x) * 3;
-    backbuffer[idx + 0] = b;
+    backbuffer[idx + 0] = r;
     backbuffer[idx + 1] = g;
-    backbuffer[idx + 2] = r;
+    backbuffer[idx + 2] = b;
 }
 
 void fill_screen(uint32_t color)
@@ -253,9 +240,9 @@ void fill_screen(uint32_t color)
     uint8_t b =  color        & 0xFF;
     size_t total = (size_t)TFT_WIDTH * TFT_HEIGHT;
     for (size_t i = 0; i < total; i++) {
-        backbuffer[i * 3 + 0] = b;
+        backbuffer[i * 3 + 0] = r;
         backbuffer[i * 3 + 1] = g;
-        backbuffer[i * 3 + 2] = r;
+        backbuffer[i * 3 + 2] = b;
     }
 }
 
@@ -268,9 +255,9 @@ void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t color)
     for (int j = 0; j < h; j++) {
         size_t row_start = ((size_t)(y + j) * TFT_WIDTH + x) * 3;
         for (int i = 0; i < w; i++) {
-            backbuffer[row_start + i * 3 + 0] = b;
+            backbuffer[row_start + i * 3 + 0] = r;
             backbuffer[row_start + i * 3 + 1] = g;
-            backbuffer[row_start + i * 3 + 2] = r;
+            backbuffer[row_start + i * 3 + 2] = b;
         }
     }
 }
@@ -293,9 +280,9 @@ void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint32_t colo
 
     while (1) {
         size_t idx = ((size_t)y0 * TFT_WIDTH + x0) * 3;
-        backbuffer[idx + 0] = b;
+        backbuffer[idx + 0] = r;
         backbuffer[idx + 1] = g;
-        backbuffer[idx + 2] = r;
+        backbuffer[idx + 2] = b;
         if (x0 == x1 && y0 == y1) break;
         e2 = 2 * err;
         if (e2 >= dy) { err += dy; x0 += sx; }

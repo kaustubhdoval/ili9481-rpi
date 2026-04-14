@@ -43,7 +43,6 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
 
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
-
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_decompress(&cinfo);
     jpeg_stdio_src(&cinfo, f);
@@ -53,40 +52,58 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
         goto err;
     }
 
-    cinfo.out_color_space      = grayscale ? JCS_GRAYSCALE : JCS_RGB;
-    cinfo.do_fancy_upsampling  = FALSE;   // eliminates chroma bleed at hard edges
+    cinfo.out_color_space     = grayscale ? JCS_GRAYSCALE : JCS_RGB;
+    cinfo.do_fancy_upsampling = FALSE;
     jpeg_start_decompress(&cinfo);
 
     uint32_t img_w = cinfo.output_width;
     uint32_t img_h = cinfo.output_height;
+    uint32_t draw_w = (x + img_w > TFT_WIDTH)  ? TFT_WIDTH  - x : img_w;
+    uint32_t draw_h = (y + img_h > TFT_HEIGHT) ? TFT_HEIGHT - y : img_h;
 
-    uint32_t draw_w = img_w;
-    uint32_t draw_h = img_h;
-    if (x + draw_w > TFT_WIDTH)  draw_w = TFT_WIDTH  - x;
-    if (y + draw_h > TFT_HEIGHT) draw_h = TFT_HEIGHT - y;
-
-    int components = cinfo.output_components;   // 1 = grayscale, 3 = RGB
+    int components = cinfo.output_components;
     uint8_t *row_buf = malloc(img_w * components);
-    if (!row_buf) {
-        fprintf(stderr, "draw_jpeg_file: OOM\n");
+    if (!row_buf) { fprintf(stderr, "draw_jpeg_file: OOM\n"); goto err; }
+
+    // Claude hard-carry begins....
+    // Floyd-Steinberg error buffers: one per channel, width+2 (padded for edge safety)
+    // err_cur = errors to add to the current row being written
+    // err_nxt = errors accumulating for the next row
+    int *err_cur = calloc((img_w + 2) * 3, sizeof(int));
+    int *err_nxt = calloc((img_w + 2) * 3, sizeof(int));
+    if (!err_cur || !err_nxt) {
+        fprintf(stderr, "draw_jpeg_file: OOM dither buffers\n");
+        free(row_buf); free(err_cur); free(err_nxt);
         goto err;
     }
 
-    JSAMPROW row_ptr  = row_buf;
+    // Helper macros — index into error buffer (offset by 1 so we can safely
+    // write to col-1 without a bounds check)
+    #define ERR_R(col) err_cur[((col)+1)*3 + 0]
+    #define ERR_G(col) err_cur[((col)+1)*3 + 1]
+    #define ERR_B(col) err_cur[((col)+1)*3 + 2]
+    #define NXT_R(col) err_nxt[((col)+1)*3 + 0]
+    #define NXT_G(col) err_nxt[((col)+1)*3 + 1]
+    #define NXT_B(col) err_nxt[((col)+1)*3 + 2]
+
+    JSAMPROW row_ptr = row_buf;
     uint32_t scanline = 0;
 
     while (cinfo.output_scanline < cinfo.output_height) {
         jpeg_read_scanlines(&cinfo, &row_ptr, 1);
 
         if (scanline < draw_h) {
-            // Vertical flip: JPEG is top-down, display expects bottom-up
+            // Remap scanline to display row
             uint16_t py = y + (draw_h - 1 - scanline);
+
+            // Reset next-row error buffer for this pass
+            memset(err_nxt, 0, (img_w + 2) * 3 * sizeof(int));
 
             for (uint32_t px_i = 0; px_i < draw_w; px_i++) {
                 // Horizontal flip
                 uint32_t src_i = img_w - 1 - px_i;
-                uint8_t r, g, b;
 
+                int r, g, b;
                 if (components == 3) {
                     r = row_buf[src_i * 3 + 0];
                     g = row_buf[src_i * 3 + 1];
@@ -95,24 +112,79 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
                     r = g = b = row_buf[src_i];
                 }
 
-                // Convert 8 bit color to 6-bit with simple dithering
-                r = (r & 0xFC) | (r >> 6);   // Keep top 6 bits, add 1 if bottom 2 bits are >= 128
-                g = (g & 0xFC) | (g >> 6);
-                b = (b & 0xFC) | (b >> 6);
+                // 1. Add accumulated error from neighbours
+                r = r + ERR_R(px_i);
+                g = g + ERR_G(px_i);
+                b = b + ERR_B(px_i);
 
-                // Write to backbuffer 
+                // 2. Clamp to valid 8-bit range
+                r = r < 0 ? 0 : r > 255 ? 255 : r;
+                g = g < 0 ? 0 : g > 255 ? 255 : g;
+                b = b < 0 ? 0 : b > 255 ? 255 : b;
+
+                // 3. Quantize to 6-bit (round to nearest multiple of 4)
+                uint8_t rq = (r + 2) & 0xFC;
+                uint8_t gq = (g + 2) & 0xFC;
+                uint8_t bq = (b + 2) & 0xFC;
+
+                // Clamp quantized value (adding 2 can push 254/255 to 256)
+                if (rq > 252) rq = 252;
+                if (gq > 252) gq = 252;
+                if (bq > 252) bq = 252;
+
+                // 4. Compute error
+                int er = r - (int)rq;
+                int eg = g - (int)gq;
+                int eb = b - (int)bq;
+
+                // 5. Distribute Floyd-Steinberg error:
+                //    right:       7/16
+                //    below-left:  3/16
+                //    below:       5/16
+                //    below-right: 1/16
+                ERR_R(px_i + 1) += (er * 7) >> 4;
+                ERR_G(px_i + 1) += (eg * 7) >> 4;
+                ERR_B(px_i + 1) += (eb * 7) >> 4;
+
+                NXT_R(px_i - 1) += (er * 3) >> 4;
+                NXT_G(px_i - 1) += (eg * 3) >> 4;
+                NXT_B(px_i - 1) += (eb * 3) >> 4;
+
+                NXT_R(px_i)     += (er * 5) >> 4;
+                NXT_G(px_i)     += (eg * 5) >> 4;
+                NXT_B(px_i)     += (eb * 5) >> 4;
+
+                NXT_R(px_i + 1) += (er * 1) >> 4;
+                NXT_G(px_i + 1) += (eg * 1) >> 4;
+                NXT_B(px_i + 1) += (eb * 1) >> 4;
+
+                // 6. Write quantized RGB to backbuffer
                 size_t idx = ((size_t)py * TFT_WIDTH + (x + px_i)) * 3;
-                backbuffer[idx + 0] = b;
-                backbuffer[idx + 1] = g;
-                backbuffer[idx + 2] = r;
+                backbuffer[idx + 0] = rq;
+                backbuffer[idx + 1] = gq;
+                backbuffer[idx + 2] = bq;
             }
+
+            // Swap error buffers — next row's errors become current
+            int *tmp = err_cur;
+            err_cur  = err_nxt;
+            err_nxt  = tmp;
         }
         scanline++;
     }
 
+    #undef ERR_R
+    #undef ERR_G
+    #undef ERR_B
+    #undef NXT_R
+    #undef NXT_G
+    #undef NXT_B
+
     expand_dirty(x, y, draw_w, draw_h);
 
     free(row_buf);
+    free(err_cur);
+    free(err_nxt);
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
     fclose(f);
