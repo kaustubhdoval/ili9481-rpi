@@ -230,10 +230,19 @@ void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 void set_pixel(uint16_t x, uint16_t y, uint32_t color)
 {
     if (x >= TFT_WIDTH || y >= TFT_HEIGHT) return;
+    uint8_t r = (color >> 16) & 0xFF;
+    uint8_t g = (color >> 8)  & 0xFF;
+    uint8_t b =  color        & 0xFF;
+    
+    // Convert 8 bit color to 6-bit with simple dithering
+    r = (r & 0xFC) | (r >> 6);   // Keep top 6 bits, add 1 if bottom 2 bits are >= 128
+    g = (g & 0xFC) | (g >> 6);
+    b = (b & 0xFC) | (b >> 6);
+    
     size_t idx = ((size_t)y * TFT_WIDTH + x) * 3;
-    backbuffer[idx + 0] = (color >> 16) & 0xFF;  // R
-    backbuffer[idx + 1] = (color >> 8)  & 0xFF;  // G
-    backbuffer[idx + 2] =  color        & 0xFF;  // B
+    backbuffer[idx + 0] = b;
+    backbuffer[idx + 1] = g;
+    backbuffer[idx + 2] = r;
 }
 
 void fill_screen(uint32_t color)
@@ -244,9 +253,9 @@ void fill_screen(uint32_t color)
     uint8_t b =  color        & 0xFF;
     size_t total = (size_t)TFT_WIDTH * TFT_HEIGHT;
     for (size_t i = 0; i < total; i++) {
-        backbuffer[i * 3 + 0] = r;
+        backbuffer[i * 3 + 0] = b;
         backbuffer[i * 3 + 1] = g;
-        backbuffer[i * 3 + 2] = b;
+        backbuffer[i * 3 + 2] = r;
     }
 }
 
@@ -259,9 +268,9 @@ void fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t color)
     for (int j = 0; j < h; j++) {
         size_t row_start = ((size_t)(y + j) * TFT_WIDTH + x) * 3;
         for (int i = 0; i < w; i++) {
-            backbuffer[row_start + i * 3 + 0] = r;
+            backbuffer[row_start + i * 3 + 0] = b;
             backbuffer[row_start + i * 3 + 1] = g;
-            backbuffer[row_start + i * 3 + 2] = b;
+            backbuffer[row_start + i * 3 + 2] = r;
         }
     }
 }
@@ -284,9 +293,9 @@ void draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint32_t colo
 
     while (1) {
         size_t idx = ((size_t)y0 * TFT_WIDTH + x0) * 3;
-        backbuffer[idx + 0] = r;
+        backbuffer[idx + 0] = b;
         backbuffer[idx + 1] = g;
-        backbuffer[idx + 2] = b;
+        backbuffer[idx + 2] = r;
         if (x0 == x1 && y0 == y1) break;
         e2 = 2 * err;
         if (e2 >= dy) { err += dy; x0 += sx; }

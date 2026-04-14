@@ -95,11 +95,16 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
                     r = g = b = row_buf[src_i];
                 }
 
-                // Write full 8-bit RGB straight into the 18-bit backbuffer.
+                // Convert 8 bit color to 6-bit with simple dithering
+                r = (r & 0xFC) | (r >> 6);   // Keep top 6 bits, add 1 if bottom 2 bits are >= 128
+                g = (g & 0xFC) | (g >> 6);
+                b = (b & 0xFC) | (b >> 6);
+
+                // Write to backbuffer 
                 size_t idx = ((size_t)py * TFT_WIDTH + (x + px_i)) * 3;
-                backbuffer[idx + 0] = r;
+                backbuffer[idx + 0] = b;
                 backbuffer[idx + 1] = g;
-                backbuffer[idx + 2] = b;
+                backbuffer[idx + 2] = r;
             }
         }
         scanline++;
