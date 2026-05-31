@@ -5,7 +5,7 @@
 </div>
 
 <p align="center">
-  A bare-metal, pure C display driver for the ILI9481 TFT panel over an 8-bit parallel interface on Raspberry Pi - built from scratch with no OS-level display abstractions.
+  A bare-metal C display driver for the ILI9481 TFT panel over an 8-bit parallel interface on Raspberry Pi - built from scratch with no OS-level display abstractions.
   <br />
   <a href="https://github.com/kaustubhdoval/ili9481-rpi"><strong>Explore the docs »</strong></a>
   <br />
@@ -22,13 +22,13 @@
 
 ## Overview
 
-This project is a pure C driver for an ILI9481-based 3.5" TFT display (480×320, 18-bit colour) driven over an 8-bit parallel interface. Every layer was written from scratch: GPIO control via direct `/dev/gpiomem` memory mapping, a hand-tuned custom init sequence derived from the ILI9481 datasheet, a double-buffered rendering pipeline with dirty-region tracking, and a full primitive library.
+This project is a pure C driver for an ILI9481-based 3.5" TFT display (480×320, 18-bit colour) driven over an 8-bit parallel interface. Every layer was written from scratch: GPIO control via direct `/dev/gpiomem` memory mapping, a hand-tuned custom init sequence, a double-buffered rendering pipeline with dirty-region tracking, and a full primitives library.
 
-The motivation was simple: I had a generic Arduino Uno TFT shield lying around and wanted to drive it from a Raspberry Pi Zero 2W. The parallel interface (vs SPI) is significantly faster but requires simultaneous control of 13 GPIO lines — something existing tools handle poorly or not at all.
+The motivation: I had a generic Arduino Uno TFT shield lying around and wanted to drive it from a Raspberry Pi Zero 2W. The parallel interface (vs SPI) is significantly faster but requires simultaneous control of 13 GPIO lines - something existing tools handle poorly or not at all.
 
 | Commit bb12be9                                        | Commit d095598                                      | Commit e94f437                                     |
 | ----------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------- |
-| <img src="/assets/docs/memory_map.gif" width="200" /> | <img src="/assets/docs/batching.gif" width="200" /> | <img src="/assets/docs/initial.gif" width="200" /> |
+| <img src="/assets/docs/memory_map.gif" width="400" /> | <img src="/assets/docs/batching.gif" width="200" /> | <img src="/assets/docs/initial.gif" width="200" /> |
 | Direct memory-mapped GPIO + full primitive suite      | Burst batching implemented                          | Initial unoptimized bit-banging                    |
 
 ---
@@ -62,7 +62,7 @@ The 8080-style parallel write cycle (RS → CS → data → WR strobe) is implem
 
 ### 18-bit Backbuffer with Lazy Rendering and Dirty-Region Tracking
 
-The driver maintains a 460,800-byte (480×320×3) backbuffer in 18-bit RGB format. All drawing primitives write to this buffer — nothing reaches the display until `flush_backbuffer()` is called. The driver tracks the minimal axis-aligned bounding rectangle of all changes since the last flush (the "dirty region") and only transmits that sub-image, dramatically reducing bus traffic for partial-screen updates.
+The driver maintains a 460,800-byte (480×320×3) backbuffer in 18-bit RGB format. All drawing primitives write to this buffer - nothing reaches the display until `flush_backbuffer()` is called. The driver tracks the minimal axis-aligned bounding rectangle of all changes since the last flush (the "dirty region") and only transmits that sub-image, dramatically reducing bus traffic for partial-screen updates.
 
 If the dirty region spans the full display width, the flush path sends the pixel data in a single contiguous burst. Partial-width regions are sent row-by-row.
 
