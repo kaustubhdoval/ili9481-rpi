@@ -1,9 +1,10 @@
 #include "ili9481_parallel.h"
+#include "ili9481_img.h"
+
+static const uint8_t monoBitmap[] = {0x01,0x00,0x00,0x21,0x08,0x02,0x10,0x10,0x05,0x03,0x80,0x02,0x8c,0x62,0x38,0x48,0x24,0x60,0x10,0x10,0x40,0x10,0x10,0x40,0x10,0x10,0x60,0x48,0x24,0x38,0x8c,0x62,0x00,0x03,0x80,0x00,0x10,0x10,0x00,0x21,0x08,0x00,0x01,0x00,0x00};
 
 void demo_rainbow_bars(void) {
-     uint16_t colors[] = {
-        0xF800, 0xFD20, 0xFFE0, 0x07E0, 0x001F, 0x781F, 0xF81F
-    };
+    uint32_t colors[] = {0x00FF0000, 0x00FFB600, 0x00FFFF00, 0x0000FF00, 0x000000FF, 0x007B00FF, 0x00FF00FF};
     int bar_height = TFT_HEIGHT / 7;
     for (int i = 0; i < 7; i++) {
         int y0 = i * bar_height;
@@ -19,15 +20,19 @@ int main(void){
     flush_backbuffer();  
     sleep(2);
     
-    fill_screen(WHITE);
-    draw_char(120, 160, 'K', VIOLET);
+    fill_screen(GREEN);
+    draw_bitmap_mono(50, 50, 24, 15, monoBitmap, WHITE);
     flush_backbuffer();
     sleep(2);
     
-    fill_rect(50, 50, 380, 220, GREEN);
+    fill_rect(50, 50, 380, 220, WHITE);    
+    draw_string_scaled(60, 100, "Hello World!", 3, BLACK);
     flush_backbuffer();
-    draw_string(60, 100, "Hello World!", VIOLET);
-    flush_backbuffer();
+    sleep(2);
+
+    fill_screen(WHITE);
+    draw_jpeg_file(0, 0, "assets/helloThere.jpg", false);   
+    flush_backbuffer(); 
 
     ili9481_stop();
     return 0;
