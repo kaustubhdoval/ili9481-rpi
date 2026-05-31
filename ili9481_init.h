@@ -1,4 +1,5 @@
 // Yoinked from tft_espi library to test out different initialization sequences for the ILI9481 display
+// I had to create a custom init sequence to get my display working properly, other init sequences are here for testing with other displays
 #ifndef ILI9481_INIT_H
 #define ILI9481_INIT_H
 

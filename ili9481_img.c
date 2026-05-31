@@ -33,7 +33,7 @@ typedef struct {
 // JPEG — decoded directly into the 18-bit backbuffer.
 //
 // libjpeg outputs 8-bit R, G, B per pixel. We write those bytes straight into
-// backbuffer[idx+0..2] with no intermediate RGB565 conversion, preserving the
+// backbuffer[idx+0..2] with no intermediate RGB666 conversion, preserving the
 // full colour depth that the ILI9481's 18-bit interface can display.
 // ---------------------------------------------------------------------------
 int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
