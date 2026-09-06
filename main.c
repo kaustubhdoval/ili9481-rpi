@@ -15,6 +15,7 @@ void demo_rainbow_bars(void) {
 
 int main(void){
     ili9481_start();
+    // fps_enable(true); enable to print average FPS every 5 seconds
 
     demo_rainbow_bars();
     flush_backbuffer();  

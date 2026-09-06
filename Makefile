@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -O0
 
-SRCS = main.c ili9481_parallel.c ili9481_img.c
+SRCS = main.c ili9481_parallel.c ili9481_img.c ili9481_fps.c
 OBJS = $(SRCS:.c=.o)
 
 main: $(OBJS)

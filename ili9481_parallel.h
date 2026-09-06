@@ -3,6 +3,7 @@
 
 #include "ili9481_constants.h"
 #include "ili9481_init.h"           // Init Sequences
+#include "ili9481_fps.h"            // FPS counter
 #include "assets/cp437font8x8.h"    // 8x8 font data
 
 #include <stdio.h>

@@ -180,6 +180,8 @@ void flush_backbuffer(void)
 {
     if (dirty_x0 >= dirty_x1 || dirty_y0 >= dirty_y1) return;
 
+    fps_tick();
+
     uint16_t w = dirty_x1 - dirty_x0;
     uint16_t h = dirty_y1 - dirty_y0;
 
