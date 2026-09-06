@@ -122,15 +122,16 @@ int draw_jpeg_file(uint16_t x, uint16_t y, const char *filepath, bool grayscale)
                 g = g < 0 ? 0 : g > 255 ? 255 : g;
                 b = b < 0 ? 0 : b > 255 ? 255 : b;
 
-                // 3. Quantize to 6-bit (round to nearest multiple of 4)
-                uint8_t rq = (r + 2) & 0xFC;
-                uint8_t gq = (g + 2) & 0xFC;
-                uint8_t bq = (b + 2) & 0xFC;
-
-                // Clamp quantized value (adding 2 can push 254/255 to 256)
-                if (rq > 252) rq = 252;
-                if (gq > 252) gq = 252;
-                if (bq > 252) bq = 252;
+                // 3. Quantize to 6-bit (round to nearest multiple of 4).
+                // Clamp before masking — (r + 2) can reach 256..257 for
+                // r=254/255, and ANDing that with 0xFC wraps to 0 instead
+                // of saturating, which corrupts bright pixels.
+                int rt = r + 2; if (rt > 255) rt = 255;
+                int gt = g + 2; if (gt > 255) gt = 255;
+                int bt = b + 2; if (bt > 255) bt = 255;
+                uint8_t rq = rt & 0xFC;
+                uint8_t gq = gt & 0xFC;
+                uint8_t bq = bt & 0xFC;
 
                 // 4. Compute error
                 int er = r - (int)rq;
