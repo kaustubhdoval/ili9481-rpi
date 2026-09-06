@@ -15,18 +15,20 @@ make clean    # removes objects and the main binary
 
 Requires `gcc` and `libjpeg-dev` (JPEG decoding only). CFLAGS are `-Wall -Wextra -O0`.
 
-`diagnostic.c` is **not** wired into the Makefile — it must be compiled manually if needed, e.g.:
+`diagnostic.c` and `benchmark.c` are **not** wired into the Makefile — compile manually if needed:
 ```bash
-gcc -Wall -Wextra -O0 diagnostic.c ili9481_parallel.c ili9481_img.c -o diagnostic -ljpeg -lm
+gcc -Wall -Wextra -O0 diagnostic.c ili9481_parallel.c ili9481_img.c ili9481_fps.c -o diagnostic -ljpeg -lm
+gcc -Wall -Wextra -O0 benchmark.c ili9481_parallel.c ili9481_img.c ili9481_fps.c -o benchmark -ljpeg -lm
 ```
 
 Run on-device (GPIO access requires root):
 ```bash
 sudo ./main
 sudo ./diagnostic
+sudo ./benchmark
 ```
 
-There is no test suite; `diagnostic.c` serves as the hardware bring-up/verification tool (see below).
+There is no test suite; `diagnostic.c` serves as the hardware bring-up/verification tool (see below) and `benchmark.c` as the FPS benchmark suite.
 
 ## Architecture
 
@@ -38,6 +40,8 @@ There is no test suite; `diagnostic.c` serves as the hardware bring-up/verificat
 - `ili9481_img.c`/`.h` — JPEG (via libjpeg) and BMP file decoding/rendering into the backbuffer, including Floyd-Steinberg dithering when quantizing decoded 8-bit RGB down to the panel's 18-bit (6-bit/channel) colour depth.
 - `main.c` — example/demo program exercising the primitives.
 - `diagnostic.c` — standalone interactive hardware bring-up tool, run *before* trusting `main.c`. Walks through wiring/polarity checks in order (data bus pattern → reset timing → normal polarity → inverted RS/DC → inverted WR → both inverted → bit-reversed bus → full init + colour flood), prompting for visual/logic-analyzer confirmation at each step. Use this to diagnose wiring issues (e.g. inverted RS/WR lines, D0/D7 swapped) independently of whether the init sequence itself is correct.
+- `ili9481_fps.c`/`.h` — opt-in FPS counter. `fps_enable(true)` turns it on (default off, near-zero cost when disabled); `flush_backbuffer()` calls `fps_tick()` internally on every real flush (skipped when the dirty region is empty, so idle/no-op flushes don't inflate the count). Reports an averaged FPS to stdout every `fps_set_report_interval_ms()` (default 5000ms).
+- `benchmark.c` — standalone FPS benchmark suite (see file header for full rationale). Measures three isolated cases rather than one blended number, because FPS here depends on two independent costs a single test would conflate: bus transfer time (driven by dirty-region byte count — `burst_write_bytes()` costs the same per byte regardless of pixel value) and CPU-side decode/dither cost (`draw_jpeg_file()`'s per-pixel Floyd-Steinberg pass). The three cases: full-screen fill (bus ceiling, no decode), a small rect moving in small steps (dirty-region tracking payoff — old/new positions stay adjacent so the bounding box stays small), and repeated JPEG decode+dither (realistic decode-bound workload, stands in for video since there's no video decode path yet).
 - `assets/` — embedded 8×8 CP437 font header (`cp437font8x8.h`) and demo image files used by `main.c`.
 
 **Key design points to preserve when modifying:**
